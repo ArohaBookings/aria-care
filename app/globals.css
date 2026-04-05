@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+    --background: 248 250 252;
+    --foreground: 15 23 42;
+    --card: 255 255 255;
+    --border: 226 232 240;
+    --primary: 13 148 136;
+    --primary-foreground: 255 255 255;
+    --muted: 241 245 249;
+    --muted-foreground: 100 116 139;
+    --ring: 13 148 136;
+  }
+
+  * {
+    @apply border-slate-200;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5 {
+    @apply font-display;
+  }
+
+  ::selection {
+    background: rgba(13, 148, 136, 0.15);
+    color: #0f172a;
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
+
+@layer utilities {
+  .text-gradient-teal {
+    background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-slate-200 shadow-card;
+  }
+
+  .card-hover {
+    @apply hover:shadow-card-hover hover:border-slate-300 transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-aria-600 hover:bg-aria-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all duration-150 shadow-teal-sm hover:shadow-teal active:scale-[0.98] inline-flex items-center gap-2;
+  }
+
+  .btn-secondary {
+    @apply bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl px-5 py-2.5 text-sm border border-slate-200 hover:border-slate-300 transition-all duration-150 inline-flex items-center gap-2;
+  }
+
+  .btn-ghost {
+    @apply text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150 inline-flex items-center gap-2;
+  }
+
+  .input {
+    @apply w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-aria-500/20 focus:border-aria-400 transition-all;
+  }
+
+  .label {
+    @apply block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .badge-green {
+    @apply badge bg-emerald-50 text-emerald-700 border border-emerald-100;
+  }
+
+  .badge-yellow {
+    @apply badge bg-amber-50 text-amber-700 border border-amber-100;
+  }
+
+  .badge-red {
+    @apply badge bg-red-50 text-red-700 border border-red-100;
+  }
+
+  .badge-teal {
+    @apply badge bg-aria-50 text-aria-700 border border-aria-100;
+  }
+
+  .badge-slate {
+    @apply badge bg-slate-100 text-slate-600 border border-slate-200;
+  }
+
+  .section-title {
+    @apply text-xs font-bold text-slate-400 uppercase tracking-widest;
+  }
+
+  .animate-fade-up { animation: fadeUp 0.5s ease-out forwards; }
+  .animate-fade-up-1 { animation: fadeUp 0.5s ease-out 0.1s both; }
+  .animate-fade-up-2 { animation: fadeUp 0.5s ease-out 0.2s both; }
+  .animate-fade-up-3 { animation: fadeUp 0.5s ease-out 0.3s both; }
+  .animate-fade-up-4 { animation: fadeUp 0.5s ease-out 0.4s both; }
+  .animate-fade-up-5 { animation: fadeUp 0.5s ease-out 0.5s both; }
+}
+
+/* Recording pulse animation */
+@keyframes recordPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 16px rgba(239, 68, 68, 0); }
+}
+
+.recording-pulse {
+  animation: recordPulse 1.5s ease-in-out infinite;
+}
+
+/* Waveform bars */
+@keyframes wave {
+  0%, 100% { height: 4px; }
+  50% { height: 20px; }
+}
+
+.wave-bar {
+  width: 3px;
+  background: #0d9488;
+  border-radius: 2px;
+  animation: wave 0.8s ease-in-out infinite;
+}
+.wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.wave-bar:nth-child(5) { animation-delay: 0.2s; }
+.wave-bar:nth-child(6) { animation-delay: 0.1s; }
+
+/* Subtle dot pattern bg */
+.dot-pattern {
+  background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+  background-size: 24px 24px;
+}
