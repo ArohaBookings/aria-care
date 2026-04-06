@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
     ],
   },
   reactStrictMode: true,
+  experimental: {
+    nodeMiddleware: true,
+  } as NextConfig["experimental"],
 };
 
 export default nextConfig;
