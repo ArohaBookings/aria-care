@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /*
- * Aria Node.js middleware — auth + trial gating.
+ * Aria Edge middleware — auth + trial gating.
  *
- * Runs on Vercel's Node.js runtime (experimental.nodeMiddleware = true).
- * We deliberately do NOT import @supabase/ssr here: that package pulls in
+ * Runs on Vercel's Edge Runtime (default, no Node.js deps).
+ * We do NOT import @supabase/ssr here: that package pulls in
  * @supabase/realtime-js → ws, which uses __dirname and crashes Edge Runtime.
- * Using direct fetch() to Supabase REST APIs keeps this lean and portable.
+ * Using direct fetch() to Supabase REST APIs keeps this 100% Edge-compatible.
  */
 
 // ─── Config ────────────────────────────────────────────────────────────────
@@ -309,5 +309,4 @@ export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|api/stripe/webhook|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
-  runtime: "nodejs",
 };
