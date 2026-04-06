@@ -1,9 +1,158 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Paths that require an active (non-expired) subscription. Users with an
-// expired trial are bounced to /billing?expired=true.
-const TRIAL_ENFORCED_PATHS = [
+/*
+ * Lightweight Edge-safe middleware.
+ *
+ * IMPORTANT: We deliberately do NOT import @supabase/ssr here.
+ * @supabase/ssr → @supabase/supabase-js → @supabase/realtime-js → ws
+ * The `ws` package uses `__dirname` which crashes Edge Runtime.
+ *
+ * Instead we parse the auth cookie manually and call Supabase REST APIs
+ * directly with fetch(). This is 100% Edge-compatible.
+ */
+
+// ─── Config ────────────────────────────────────────────────────────────────
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+function projectRef() {
+  return new URL(SUPABASE_URL).hostname.split(".")[0];
+}
+
+// ─── Cookie helpers (matches @supabase/ssr chunked format) ─────────────────
+
+function cookieName() {
+  return `sb-${projectRef()}-auth-token`;
+}
+
+/** Read the Supabase session from (possibly chunked) cookies. */
+function readSession(req: NextRequest): {
+  access_token?: string;
+  refresh_token?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [k: string]: any;
+} | null {
+  const name = cookieName();
+
+  // Try single cookie first
+  const single = req.cookies.get(name);
+  if (single) {
+    try {
+      return JSON.parse(single.value);
+    } catch {
+      return null;
+    }
+  }
+
+  // Try chunked cookies: sb-xxx-auth-token.0, .1, .2 …
+  const parts: string[] = [];
+  for (let i = 0; ; i++) {
+    const c = req.cookies.get(`${name}.${i}`);
+    if (!c) break;
+    parts.push(c.value);
+  }
+  if (!parts.length) return null;
+  try {
+    return JSON.parse(parts.join(""));
+  } catch {
+    return null;
+  }
+}
+
+const CHUNK = 3180;
+const COOKIE_OPTS = {
+  path: "/",
+  maxAge: 60 * 60 * 24 * 365,
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax" as const,
+};
+
+/** Write session to both request (for downstream route) and response (for browser). */
+function writeSession(
+  req: NextRequest,
+  res: NextResponse,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  session: Record<string, any>,
+) {
+  const name = cookieName();
+  const json = JSON.stringify(session);
+
+  // Clear stale cookies (single + up to 10 chunks)
+  for (const target of [req.cookies, res.cookies] as const) {
+    target.delete(name);
+    for (let i = 0; i < 10; i++) target.delete(`${name}.${i}`);
+  }
+
+  if (json.length <= CHUNK) {
+    req.cookies.set(name, json);
+    res.cookies.set(name, json, COOKIE_OPTS);
+  } else {
+    const chunks = json.match(new RegExp(`.{1,${CHUNK}}`, "g")) ?? [];
+    chunks.forEach((c, i) => {
+      req.cookies.set(`${name}.${i}`, c);
+      res.cookies.set(`${name}.${i}`, c, COOKIE_OPTS);
+    });
+  }
+}
+
+// ─── Supabase REST helpers ─────────────────────────────────────────────────
+
+type User = { id: string; email?: string };
+
+/** GET /auth/v1/user — validate the current access token. */
+async function getUser(token: string): Promise<User | null> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: ANON_KEY },
+    });
+    return r.ok ? r.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** POST /auth/v1/token — exchange a refresh token for a fresh session. */
+async function refreshAuth(refreshToken: string) {
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: ANON_KEY },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      },
+    );
+    return r.ok ? r.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** PostgREST single-row query. Returns null on error or 404. */
+async function queryRow<T>(
+  table: string,
+  qs: string,
+  token: string,
+): Promise<T | null> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${qs}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: ANON_KEY,
+        Accept: "application/vnd.pgrst.object+json",
+      },
+    });
+    return r.ok ? r.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Path lists ────────────────────────────────────────────────────────────
+
+const TRIAL_ENFORCED = [
   "/dashboard",
   "/participants",
   "/staff",
@@ -13,46 +162,61 @@ const TRIAL_ENFORCED_PATHS = [
   "/documents",
 ];
 
-// Always reachable — even with an expired trial or no sub — so users can recover.
-// /billing/success is listed explicitly because a fresh checkout may complete
-// before the Stripe webhook lands (and writes stripe_subscription_id).
-const TRIAL_BYPASS_PATHS = [
+const TRIAL_BYPASS = [
   "/billing",
   "/billing/success",
   "/settings",
   "/onboarding",
 ];
 
+const DASHBOARD_ROOTS = [
+  "/dashboard",
+  "/participants",
+  "/staff",
+  "/notes",
+  "/compliance",
+  "/billing",
+  "/rostering",
+  "/settings",
+  "/onboarding",
+  "/documents",
+];
+
+// ─── Middleware ─────────────────────────────────────────────────────────────
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (c: { name: string; value: string; options?: Record<string, unknown> }[]) => {
-          c.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          c.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
-      },
-    }
-  );
+  // ── Resolve user from Supabase auth cookie ──
+  const session = readSession(request);
+  let accessToken = session?.access_token as string | undefined;
+  let user: User | null = null;
 
-  const { data: { user } } = await supabase.auth.getUser();
+  if (accessToken) {
+    user = await getUser(accessToken);
+  }
+
+  // Token may have expired — try refresh
+  if (!user && session?.refresh_token) {
+    const fresh = await refreshAuth(session.refresh_token as string);
+    if (fresh?.access_token) {
+      accessToken = fresh.access_token;
+      user = fresh.user ?? (await getUser(fresh.access_token));
+      // Propagate new tokens to request (downstream) + response (browser)
+      writeSession(request, response, fresh);
+      // Recreate response so downstream sees updated request cookies
+      response = NextResponse.next({ request });
+      writeSession(request, response, fresh);
+    }
+  }
+
   const path = request.nextUrl.pathname;
 
-  const isDashboard = [
-    "/dashboard", "/participants", "/staff", "/notes",
-    "/compliance", "/billing", "/rostering", "/settings",
-    "/onboarding", "/documents",
-  ].some((p) => path.startsWith(p));
+  const isDashboard = DASHBOARD_ROOTS.some((p) => path.startsWith(p));
   const isAdmin = path.startsWith("/admin");
   const isAuth = path === "/login" || path === "/signup";
 
-  // ---- Auth gate ----
+  // ── Auth gate ──
   if ((isDashboard || isAdmin) && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -66,32 +230,33 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // ---- Trial expiry gate ----
-  // Admin routes and non-dashboard paths are exempt. Billing/settings/onboarding
-  // are bypass paths so users can upgrade or complete their profile.
-  if (user && isDashboard && !isAdmin) {
-    const enforce = TRIAL_ENFORCED_PATHS.some((p) => path.startsWith(p));
-    const bypass = TRIAL_BYPASS_PATHS.some((p) => path.startsWith(p));
+  // ── Trial / subscription gate ──
+  if (user && isDashboard && !isAdmin && accessToken) {
+    const enforce = TRIAL_ENFORCED.some((p) => path.startsWith(p));
+    const bypass = TRIAL_BYPASS.some((p) => path.startsWith(p));
+
     if (enforce && !bypass) {
-      // Resolve the user's org and check trial status. We read from the
-      // users table (not a JWT claim) to guarantee freshness after upgrade.
-      const { data: profile } = await supabase
-        .from("users")
-        .select("organisation_id")
-        .eq("id", user.id)
-        .single();
+      const profile = await queryRow<{ organisation_id: string }>(
+        "users",
+        `select=organisation_id&id=eq.${user.id}`,
+        accessToken,
+      );
 
       if (profile?.organisation_id) {
-        const { data: org } = await supabase
-          .from("organisations")
-          .select("subscription_tier, subscription_status, trial_ends_at, stripe_subscription_id, name")
-          .eq("id", profile.organisation_id)
-          .single();
+        const org = await queryRow<{
+          subscription_tier: string;
+          subscription_status: string;
+          trial_ends_at: string;
+          stripe_subscription_id: string;
+          name: string;
+        }>(
+          "organisations",
+          `select=subscription_tier,subscription_status,trial_ends_at,stripe_subscription_id,name&id=eq.${profile.organisation_id}`,
+          accessToken,
+        );
 
-        // Gate 1: user has finished onboarding (org has a real name) but
-        // has never attached a Stripe subscription — force them through
-        // checkout before granting workspace access. This is what enforces
-        // "card required at signup".
+        // Gate 1: Org exists with a real name but no Stripe subscription →
+        // force through checkout (card required at signup)
         const hasRealOrgName = org?.name && org.name !== "My Organisation";
         const hasStripeSub = !!org?.stripe_subscription_id;
         if (hasRealOrgName && !hasStripeSub) {
@@ -100,8 +265,7 @@ export async function middleware(request: NextRequest) {
           return NextResponse.redirect(url);
         }
 
-        // Gate 2: trial has fully expired on our side (legacy free tier)
-        // AND the org has no Stripe subscription.
+        // Gate 2: Legacy trial fully expired
         const isTrial = org?.subscription_tier === "trial";
         const trialExpired =
           isTrial &&
@@ -115,8 +279,11 @@ export async function middleware(request: NextRequest) {
           return NextResponse.redirect(url);
         }
 
-        // Gate 3: Stripe subscription is in an unpayable state.
-        if (org?.subscription_status === "incomplete_expired" || org?.subscription_status === "unpaid") {
+        // Gate 3: Stripe subscription unpayable
+        if (
+          org?.subscription_status === "incomplete_expired" ||
+          org?.subscription_status === "unpaid"
+        ) {
           const url = request.nextUrl.clone();
           url.pathname = "/billing";
           url.searchParams.set("expired", "true");
