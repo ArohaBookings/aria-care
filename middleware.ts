@@ -15,7 +15,12 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 function projectRef() {
-  return new URL(SUPABASE_URL).hostname.split(".")[0];
+  if (!SUPABASE_URL) return "unknown";
+  try {
+    return new URL(SUPABASE_URL).hostname.split(".")[0];
+  } catch {
+    return "unknown";
+  }
 }
 
 // ─── Cookie helpers (matches @supabase/ssr chunked format) ─────────────────
@@ -183,115 +188,121 @@ const DASHBOARD_ROOTS = [
 // ─── Middleware ─────────────────────────────────────────────────────────────
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  try {
+    let response = NextResponse.next({ request });
 
-  // ── Resolve user from Supabase auth cookie ──
-  const session = readSession(request);
-  let accessToken = session?.access_token as string | undefined;
-  let user: User | null = null;
+    // ── Resolve user from Supabase auth cookie ──
+    const session = readSession(request);
+    let accessToken = session?.access_token as string | undefined;
+    let user: User | null = null;
 
-  if (accessToken) {
-    user = await getUser(accessToken);
-  }
-
-  // Token may have expired — try refresh
-  if (!user && session?.refresh_token) {
-    const fresh = await refreshAuth(session.refresh_token as string);
-    if (fresh?.access_token) {
-      accessToken = fresh.access_token;
-      user = fresh.user ?? (await getUser(fresh.access_token));
-      // Propagate new tokens to request (downstream) + response (browser)
-      writeSession(request, response, fresh);
-      // Recreate response so downstream sees updated request cookies
-      response = NextResponse.next({ request });
-      writeSession(request, response, fresh);
+    if (accessToken) {
+      user = await getUser(accessToken);
     }
-  }
 
-  const path = request.nextUrl.pathname;
+    // Token may have expired — try refresh
+    if (!user && session?.refresh_token) {
+      const fresh = await refreshAuth(session.refresh_token as string);
+      if (fresh?.access_token) {
+        accessToken = fresh.access_token;
+        user = fresh.user ?? (await getUser(fresh.access_token));
+        // Propagate new tokens to request (downstream) + response (browser)
+        writeSession(request, response, fresh);
+        // Recreate response so downstream sees updated request cookies
+        response = NextResponse.next({ request });
+        writeSession(request, response, fresh);
+      }
+    }
 
-  const isDashboard = DASHBOARD_ROOTS.some((p) => path.startsWith(p));
-  const isAdmin = path.startsWith("/admin");
-  const isAuth = path === "/login" || path === "/signup";
+    const path = request.nextUrl.pathname;
 
-  // ── Auth gate ──
-  if ((isDashboard || isAdmin) && !user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("redirect", path);
-    return NextResponse.redirect(url);
-  }
+    const isDashboard = DASHBOARD_ROOTS.some((p) => path.startsWith(p));
+    const isAdmin = path.startsWith("/admin");
+    const isAuth = path === "/login" || path === "/signup";
 
-  if (isAuth && user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
+    // ── Auth gate ──
+    if ((isDashboard || isAdmin) && !user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("redirect", path);
+      return NextResponse.redirect(url);
+    }
 
-  // ── Trial / subscription gate ──
-  if (user && isDashboard && !isAdmin && accessToken) {
-    const enforce = TRIAL_ENFORCED.some((p) => path.startsWith(p));
-    const bypass = TRIAL_BYPASS.some((p) => path.startsWith(p));
+    if (isAuth && user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
 
-    if (enforce && !bypass) {
-      const profile = await queryRow<{ organisation_id: string }>(
-        "users",
-        `select=organisation_id&id=eq.${user.id}`,
-        accessToken,
-      );
+    // ── Trial / subscription gate ──
+    if (user && isDashboard && !isAdmin && accessToken) {
+      const enforce = TRIAL_ENFORCED.some((p) => path.startsWith(p));
+      const bypass = TRIAL_BYPASS.some((p) => path.startsWith(p));
 
-      if (profile?.organisation_id) {
-        const org = await queryRow<{
-          subscription_tier: string;
-          subscription_status: string;
-          trial_ends_at: string;
-          stripe_subscription_id: string;
-          name: string;
-        }>(
-          "organisations",
-          `select=subscription_tier,subscription_status,trial_ends_at,stripe_subscription_id,name&id=eq.${profile.organisation_id}`,
+      if (enforce && !bypass) {
+        const profile = await queryRow<{ organisation_id: string }>(
+          "users",
+          `select=organisation_id&id=eq.${user.id}`,
           accessToken,
         );
 
-        // Gate 1: Org exists with a real name but no Stripe subscription →
-        // force through checkout (card required at signup)
-        const hasRealOrgName = org?.name && org.name !== "My Organisation";
-        const hasStripeSub = !!org?.stripe_subscription_id;
-        if (hasRealOrgName && !hasStripeSub) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/onboarding";
-          return NextResponse.redirect(url);
-        }
+        if (profile?.organisation_id) {
+          const org = await queryRow<{
+            subscription_tier: string;
+            subscription_status: string;
+            trial_ends_at: string;
+            stripe_subscription_id: string;
+            name: string;
+          }>(
+            "organisations",
+            `select=subscription_tier,subscription_status,trial_ends_at,stripe_subscription_id,name&id=eq.${profile.organisation_id}`,
+            accessToken,
+          );
 
-        // Gate 2: Legacy trial fully expired
-        const isTrial = org?.subscription_tier === "trial";
-        const trialExpired =
-          isTrial &&
-          org?.trial_ends_at &&
-          new Date(org.trial_ends_at) < new Date();
+          // Gate 1: Org exists with a real name but no Stripe subscription →
+          // force through checkout (card required at signup)
+          const hasRealOrgName = org?.name && org.name !== "My Organisation";
+          const hasStripeSub = !!org?.stripe_subscription_id;
+          if (hasRealOrgName && !hasStripeSub) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/onboarding";
+            return NextResponse.redirect(url);
+          }
 
-        if (trialExpired) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/billing";
-          url.searchParams.set("expired", "true");
-          return NextResponse.redirect(url);
-        }
+          // Gate 2: Legacy trial fully expired
+          const isTrial = org?.subscription_tier === "trial";
+          const trialExpired =
+            isTrial &&
+            org?.trial_ends_at &&
+            new Date(org.trial_ends_at) < new Date();
 
-        // Gate 3: Stripe subscription unpayable
-        if (
-          org?.subscription_status === "incomplete_expired" ||
-          org?.subscription_status === "unpaid"
-        ) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/billing";
-          url.searchParams.set("expired", "true");
-          return NextResponse.redirect(url);
+          if (trialExpired) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/billing";
+            url.searchParams.set("expired", "true");
+            return NextResponse.redirect(url);
+          }
+
+          // Gate 3: Stripe subscription unpayable
+          if (
+            org?.subscription_status === "incomplete_expired" ||
+            org?.subscription_status === "unpaid"
+          ) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/billing";
+            url.searchParams.set("expired", "true");
+            return NextResponse.redirect(url);
+          }
         }
       }
     }
-  }
 
-  return response;
+    return response;
+  } catch (err) {
+    console.error("[middleware] fatal error:", err);
+    // Fail open — let the request through so the site stays up
+    return NextResponse.next({ request });
+  }
 }
 
 export const config = {
