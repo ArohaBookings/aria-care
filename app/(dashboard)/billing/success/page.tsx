@@ -11,7 +11,7 @@ function SuccessInner() {
   const sessionId = params.get("session_id");
 
   // Sync subscription state server-side immediately (don't wait for webhook),
-  // then refresh the router so middleware sees the updated org.
+  // then refresh the router so the dashboard layouts read the updated org.
   useEffect(() => {
     (async () => {
       if (sessionId) {
