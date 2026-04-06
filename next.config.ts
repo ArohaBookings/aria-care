@@ -7,8 +7,8 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
-  // Silence hydration warnings from browser extensions
   reactStrictMode: true,
+  serverExternalPackages: ["ws"],
 };
 
 export default nextConfig;
