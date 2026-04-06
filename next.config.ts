@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   images: {
@@ -10,14 +11,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["ws"],
   webpack: (config) => {
-    // The `ws` package uses `__dirname` which doesn't exist in the Edge
-    // Runtime. Since middleware runs on Edge and Supabase's realtime-js
-    // pulls in ws, we alias it to false so the bundler replaces it with
-    // an empty module. Supabase SSR only needs the REST/auth client in
-    // middleware — realtime channels are never opened there.
+    // The `ws` package uses `__dirname` which doesn't exist in Edge Runtime.
+    // Replace it with a minimal shim that delegates to the global WebSocket
+    // (available on Edge natively). This prevents the middleware from crashing.
     config.resolve.alias = {
       ...config.resolve.alias,
-      ws: false,
+      ws: path.resolve(process.cwd(), "lib/ws-shim.js"),
     };
     return config;
   },
