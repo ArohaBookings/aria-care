@@ -1,14 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /*
- * Lightweight Edge-safe middleware.
+ * Aria Node.js middleware — auth + trial gating.
  *
- * IMPORTANT: We deliberately do NOT import @supabase/ssr here.
- * @supabase/ssr → @supabase/supabase-js → @supabase/realtime-js → ws
- * The `ws` package uses `__dirname` which crashes Edge Runtime.
- *
- * Instead we parse the auth cookie manually and call Supabase REST APIs
- * directly with fetch(). This is 100% Edge-compatible.
+ * Runs on Vercel's Node.js runtime (experimental.nodeMiddleware = true).
+ * We deliberately do NOT import @supabase/ssr here: that package pulls in
+ * @supabase/realtime-js → ws, which uses __dirname and crashes Edge Runtime.
+ * Using direct fetch() to Supabase REST APIs keeps this lean and portable.
  */
 
 // ─── Config ────────────────────────────────────────────────────────────────
