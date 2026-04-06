@@ -1,15 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /*
- * Minimal Edge middleware — no auth logic, no external imports.
+ * Minimal Node.js runtime middleware — passthrough, no auth logic.
+ *
+ * Running on Node.js runtime (not Edge) to avoid [ReferenceError: __dirname]
+ * caused by Next.js 15.5.x bundling node:buffer + node:async_hooks into
+ * every Edge middleware bundle, which Vercel's V8 isolate cannot execute.
  *
  * Auth and subscription gating live in (dashboard)/layout.tsx and
- * (admin)/layout.tsx (server components, Node.js runtime — no Edge limits).
- *
- * This file exists purely because Vercel requires a middleware export to
- * correctly route requests to Next.js serverless functions. Without it,
- * the deployment returns 404 for all routes.
+ * (admin)/layout.tsx (server components — no middleware needed).
  */
+
+export const runtime = "nodejs";
 
 export function middleware(_request: NextRequest) {
   return NextResponse.next();
