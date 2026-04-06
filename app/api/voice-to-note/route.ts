@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateProgressNote } from "@/lib/ai/generate";
+
+export const maxDuration = 60;
 import { rateLimit, rlKey, sanitizeUserInput } from "@/lib/security";
 
 export async function POST(request: NextRequest) {

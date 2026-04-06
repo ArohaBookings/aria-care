@@ -9,19 +9,5 @@
       "path": "/api/cron/trial-expiry",
       "schedule": "0 23 * * *"
     }
-  ],
-  "functions": {
-    "app/api/transcribe/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/voice-to-note/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/generate-document/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/audit-pack/route.ts": {
-      "maxDuration": 120
-    }
-  }
+  ]
 }
