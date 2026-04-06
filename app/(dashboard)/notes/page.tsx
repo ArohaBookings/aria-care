@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Mic, Square, Loader2, Check, X, ChevronDown, ChevronUp, Copy, AlertTriangle, FileText, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { timeAgo } from "@/lib/utils";
@@ -18,6 +19,7 @@ interface GeneratedNote {
 
 interface SavedNote {
   id: string;
+  participant_id: string;
   created_at: string;
   note_text: string;
   status: string;
@@ -28,7 +30,45 @@ interface SavedNote {
   participants: { full_name: string };
 }
 
+async function fetchParticipants() {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("participants")
+    .select("id, full_name, goals")
+    .eq("status", "active")
+    .order("full_name");
+
+  return data ?? [];
+}
+
+async function fetchNotesAndRole() {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let role = "support_worker";
+  if (user) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    role = profile?.role ?? "support_worker";
+  }
+
+  const { data } = await supabase
+    .from("progress_notes")
+    .select("id, participant_id, created_at, note_text, status, mood, incident_flagged, support_level, author_name, participants(full_name)")
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  return {
+    role,
+    notes: (data as unknown as SavedNote[]) ?? [],
+  };
+}
+
 export default function NotesPage() {
+  const searchParams = useSearchParams();
   const [state, setState] = useState<RecordingState>("idle");
   const [transcript, setTranscript] = useState("");
   const [inputMode, setInputMode] = useState<"voice" | "text">("voice");
@@ -43,6 +83,7 @@ export default function NotesPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved">("all");
+  const [viewerRole, setViewerRole] = useState("support_worker");
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
@@ -50,23 +91,43 @@ export default function NotesPage() {
   const supabase = createClient();
 
   useEffect(() => {
-    loadParticipants();
-    loadNotes();
+    (async () => {
+      const [participantData, noteState] = await Promise.all([
+        fetchParticipants(),
+        fetchNotesAndRole(),
+      ]);
+
+      setParticipants(participantData);
+      setViewerRole(noteState.role);
+      setNotes(noteState.notes);
+    })();
   }, []);
 
-  const loadParticipants = async () => {
-    const { data } = await supabase.from("participants").select("id, full_name, goals").eq("status", "active").order("full_name");
-    setParticipants(data ?? []);
-  };
+  useEffect(() => {
+    const participant = searchParams.get("participant");
+    const status = searchParams.get("status");
+
+    if (participant) {
+      setSelectedParticipant(participant);
+    }
+
+    if (status === "pending" || status === "approved" || status === "all") {
+      setFilterStatus(status);
+    }
+  }, [searchParams]);
 
   const loadNotes = async () => {
-    const { data } = await supabase.from("progress_notes")
-      .select("id, created_at, note_text, status, mood, incident_flagged, support_level, author_name, participants(full_name)")
-      .order("created_at", { ascending: false }).limit(30);
-    setNotes((data as unknown as SavedNote[]) ?? []);
+    const { role, notes: latestNotes } = await fetchNotesAndRole();
+    setViewerRole(role);
+    setNotes(latestNotes);
   };
 
   const startRecording = async () => {
+    if (!selectedParticipant) {
+      setError("Please select a participant before recording.");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorder.current = new MediaRecorder(stream);
@@ -144,7 +205,10 @@ export default function NotesPage() {
   };
 
   const saveNote = async () => {
-    if (!generated) return;
+    if (!generated || !selectedParticipant) {
+      setError("Please select a participant before saving.");
+      return;
+    }
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     const { data: profile } = await supabase.from("users").select("full_name, organisation_id, role").eq("id", user!.id).single();
@@ -170,12 +234,25 @@ export default function NotesPage() {
   };
 
   const approveNote = async (noteId: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("progress_notes").update({ status: "approved", approved_by: user?.id, approved_at: new Date().toISOString() }).eq("id", noteId);
+    const res = await fetch("/api/notes/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ noteId, action: "approve" }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Could not approve note.");
+      return;
+    }
     loadNotes();
   };
 
-  const filteredNotes = notes.filter(n => filterStatus === "all" || n.status === filterStatus);
+  const participantFilter = searchParams.get("participant");
+  const filteredNotes = notes.filter((n) => {
+    const matchesStatus = filterStatus === "all" || n.status === filterStatus;
+    const matchesParticipant = !participantFilter || n.participant_id === participantFilter;
+    return matchesStatus && matchesParticipant;
+  });
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   return (
@@ -206,7 +283,11 @@ export default function NotesPage() {
             {inputMode === "voice" ? (
               <div className="text-center py-6">
                 {state === "idle" && (
-                  <button onClick={startRecording} className="w-20 h-20 rounded-full bg-aria-600 hover:bg-aria-700 flex items-center justify-center mx-auto shadow-teal transition-all hover:scale-105 active:scale-95">
+                  <button
+                    onClick={startRecording}
+                    disabled={!selectedParticipant}
+                    className="w-20 h-20 rounded-full bg-aria-600 hover:bg-aria-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center mx-auto shadow-teal transition-all hover:scale-105 active:scale-95"
+                  >
                     <Mic className="w-8 h-8 text-white" />
                   </button>
                 )}
@@ -313,7 +394,7 @@ export default function NotesPage() {
                   <div className="border-t border-slate-100 px-5 py-4">
                     <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-4">{note.note_text}</p>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {note.status === "pending" && (
+                      {note.status === "pending" && ["owner", "coordinator"].includes(viewerRole) && (
                         <button onClick={() => approveNote(note.id)} className="btn-primary text-xs py-1.5 px-4">
                           <Check className="w-3.5 h-3.5" /> Approve
                         </button>

@@ -15,20 +15,6 @@ import { sendTrialExpiryReminder } from "@/lib/email/send";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function alreadySentRecently(admin: any, organisationId: string, subject: string): Promise<boolean> {
-  const cutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
-  const { data } = await admin
-    .from("email_log")
-    .select("id")
-    .eq("organisation_id", organisationId)
-    .eq("subject", subject)
-    .eq("status", "sent")
-    .gte("created_at", cutoff)
-    .limit(1);
-  return !!(data && data.length > 0);
-}
-
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
@@ -82,7 +68,7 @@ export async function GET(request: NextRequest) {
       .from("participants")
       .select("id", { count: "exact", head: true })
       .eq("organisation_id", org.id)
-      .eq("is_active", true);
+      .eq("status", "active");
 
     const subject =
       daysRemaining <= 0
@@ -90,7 +76,17 @@ export async function GET(request: NextRequest) {
         : `Your Aria trial ends in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}`;
 
     // Dedupe
-    if (await alreadySentRecently(admin, org.id, subject)) {
+    const cutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
+    const { data: sentRecently } = await admin
+      .from("email_log")
+      .select("id")
+      .eq("organisation_id", org.id)
+      .eq("subject", subject)
+      .eq("status", "sent")
+      .gte("created_at", cutoff)
+      .limit(1);
+
+    if ((sentRecently?.length ?? 0) > 0) {
       results.push({ org: org.id, daysRemaining, sent: false, reason: "already-sent-today" });
       continue;
     }

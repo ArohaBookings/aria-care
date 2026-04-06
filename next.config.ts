@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
+  outputFileTracingRoot: process.cwd(),
   reactStrictMode: true,
 };
 

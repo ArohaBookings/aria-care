@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
+import { getAppUrl } from "@/lib/app-url";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
 
@@ -12,6 +13,7 @@ const PRICE_IDS: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
+    const appUrl = getAppUrl(request);
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -62,8 +64,8 @@ export async function POST(request: NextRequest) {
       payment_method_types: ["card"],
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/billing/success?plan=${encodeURIComponent(plan)}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/billing`,
+      success_url: `${appUrl}/billing/success?plan=${encodeURIComponent(plan)}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/billing`,
       allow_promotion_codes: true,
       // Require card upfront even during trial — no anonymous trials.
       payment_method_collection: "always",

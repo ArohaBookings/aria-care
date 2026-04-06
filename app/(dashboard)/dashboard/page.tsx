@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Mic, Users, AlertTriangle, Clock, ArrowRight, CheckCircle, Shield, Calendar } from "lucide-react";
-import { formatDate, daysUntil } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Dashboard | Aria" };
 
@@ -20,12 +20,14 @@ export default async function DashboardPage() {
   ]);
 
   const firstName = (profile?.full_name ?? "there").split(" ")[0];
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="p-6 max-w-7xl space-y-6">
       {/* Greeting */}
       <div className="animate-fade-up">
-        <h2 className="font-display text-2xl font-bold text-slate-900">Good morning, {firstName} 👋</h2>
+        <h2 className="font-display text-2xl font-bold text-slate-900">{greeting}, {firstName} 👋</h2>
         <p className="text-slate-500 text-sm mt-0.5">Here&apos;s what needs your attention today.</p>
       </div>
 

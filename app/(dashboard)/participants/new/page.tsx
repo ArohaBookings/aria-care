@@ -28,18 +28,22 @@ export default function NewParticipantPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError("");
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
-    const { error: err } = await supabase.from("participants").insert({
-      ...form,
-      organisation_id: profile?.organisation_id,
-      plan_budget: form.plan_budget ? parseFloat(form.plan_budget) : null,
-      status: "active",
-      funding_remaining_pct: 100,
+    const res = await fetch("/api/participants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...form,
+        plan_budget: form.plan_budget ? parseFloat(form.plan_budget) : null,
+      }),
     });
-    if (err) { setError(err.message); setLoading(false); }
-    else router.push("/participants");
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Failed to add participant");
+      setLoading(false);
+      return;
+    }
+    router.push("/participants");
+    router.refresh();
   };
 
   const Field = ({ label, name, type = "text", placeholder = "", required = false, className = "" }: { label: string; name: string; type?: string; placeholder?: string; required?: boolean; className?: string }) => (

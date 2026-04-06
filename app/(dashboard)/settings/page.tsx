@@ -23,10 +23,10 @@ function SettingsContent() {
   const [profile, setProfile] = useState({ full_name: "", email: "" });
   const [org, setOrg] = useState({ name: "", abn: "", address: "", contact_email: "" });
   const [notifications, setNotifications] = useState<Record<string, boolean>>({});
-  const supabase = createClient();
 
   useEffect(() => {
     (async () => {
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       const { data: p } = await supabase.from("users").select("full_name, email, organisation_id, notification_preferences").eq("id", user!.id).single();
       if (p) {
@@ -46,6 +46,7 @@ function SettingsContent() {
 
   const handleSaveProfile = async () => {
     setSaving(true);
+    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("users").update({ full_name: profile.full_name }).eq("id", user!.id);
     setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500);
@@ -53,6 +54,7 @@ function SettingsContent() {
 
   const handleSaveOrg = async () => {
     setSaving(true);
+    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     const { data: p } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
     if (p?.organisation_id) await supabase.from("organisations").update(org).eq("id", p.organisation_id);
@@ -61,6 +63,7 @@ function SettingsContent() {
 
   const handleSaveNotifications = async () => {
     setSaving(true);
+    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("users").update({ notification_preferences: notifications } as unknown as Record<string, unknown>).eq("id", user!.id);
     setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500);

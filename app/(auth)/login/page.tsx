@@ -30,7 +30,7 @@ function LoginContent() {
     setLoading(true); setError("");
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${redirect}` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/complete?redirect=${encodeURIComponent(redirect)}&type=magiclink` },
     });
     if (error) { setError(error.message); setLoading(false); }
     else { setSent(true); setLoading(false); }
@@ -40,7 +40,7 @@ function LoginContent() {
     setLoading(true);
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?redirect=${redirect}` },
+      options: { redirectTo: `${window.location.origin}/auth/complete?redirect=${encodeURIComponent(redirect)}` },
     });
   };
 

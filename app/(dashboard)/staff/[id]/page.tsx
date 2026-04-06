@@ -24,7 +24,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   const { data: viewerProfile } = viewer
     ? await supabase.from("users").select("role").eq("id", viewer.id).single()
     : { data: null };
-  const canEdit = ["owner", "manager"].includes(viewerProfile?.role ?? "");
+  const canEdit = ["owner", "coordinator"].includes(viewerProfile?.role ?? "");
 
   const { data: compliance } = await supabase
     .from("staff_compliance")
@@ -191,7 +191,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
 
       {!canEdit && (
         <div className="mt-5 flex items-center gap-2 text-xs text-slate-500">
-          <AlertCircle className="w-3.5 h-3.5" /> Only owners and managers can edit staff roles.
+          <AlertCircle className="w-3.5 h-3.5" /> Only owners and coordinators can edit staff roles.
         </div>
       )}
     </div>

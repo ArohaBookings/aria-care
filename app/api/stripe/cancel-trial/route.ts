@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 
 // Immediately cancels an organisation's Stripe subscription (trial or paid).
-// Owners and managers only. The webhook handles DB state via
+// Owners and coordinators only. The webhook handles DB state via
 // customer.subscription.deleted so this route only needs to call Stripe.
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
@@ -23,8 +23,8 @@ export async function POST() {
     if (!profile?.organisation_id) {
       return NextResponse.json({ error: "No organisation" }, { status: 400 });
     }
-    if (!["owner", "manager"].includes(profile.role ?? "")) {
-      return NextResponse.json({ error: "Only owners and managers can cancel the subscription." }, { status: 403 });
+    if (!["owner", "coordinator"].includes(profile.role ?? "")) {
+      return NextResponse.json({ error: "Only owners and coordinators can cancel the subscription." }, { status: 403 });
     }
 
     const { data: org } = await supabase

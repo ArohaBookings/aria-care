@@ -2,11 +2,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Save, Check } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 
 const ROLES = [
   { value: "owner", label: "Owner" },
-  { value: "manager", label: "Manager" },
   { value: "coordinator", label: "Coordinator" },
   { value: "support_worker", label: "Support Worker" },
 ];
@@ -21,7 +19,6 @@ export default function StaffControls({
   initialActive: boolean;
 }) {
   const router = useRouter();
-  const supabase = createClient();
   const [role, setRole] = useState(initialRole);
   const [active, setActive] = useState(initialActive);
   const [saving, setSaving] = useState(false);
@@ -33,14 +30,16 @@ export default function StaffControls({
     setErr("");
     setSaved(false);
 
-    const { error } = await supabase
-      .from("users")
-      .update({ role, is_active: active })
-      .eq("id", staffId);
+    const res = await fetch(`/api/staff/${staffId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role, is_active: active }),
+    });
+    const data = await res.json();
 
     setSaving(false);
-    if (error) {
-      setErr(error.message);
+    if (!res.ok) {
+      setErr(data.error ?? "Could not update staff member");
     } else {
       setSaved(true);
       router.refresh();

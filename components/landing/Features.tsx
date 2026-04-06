@@ -71,7 +71,7 @@ export default function Features() {
             <span className="text-gradient-teal">An operating system.</span>
           </h2>
           <p className="text-slate-600 text-lg leading-relaxed">
-            ShiftCare and Careview schedule shifts. Aria handles everything that happens before, during, and after — the documentation, compliance, and billing that's burying your team.
+            ShiftCare and Careview schedule shifts. Aria handles everything that happens before, during, and after — the documentation, compliance, and billing that&apos;s burying your team.
           </p>
         </div>
 

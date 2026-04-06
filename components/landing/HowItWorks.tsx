@@ -48,7 +48,7 @@ export default function HowItWorks() {
           <p className="font-display text-xl font-bold text-slate-900 mb-2">
             The average support worker spends <span className="text-gradient-teal">10+ hours per week</span> on documentation.
           </p>
-          <p className="text-slate-600">Aria reduces that to under 60 minutes. That's time back for care, family, and life.</p>
+          <p className="text-slate-600">Aria reduces that to under 60 minutes. That&apos;s time back for care, family, and life.</p>
         </div>
       </div>
     </section>

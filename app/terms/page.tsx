@@ -1,11 +1,12 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-white">
       <nav className="border-b border-slate-100 px-6 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo.svg" alt="Aria" className="w-8 h-8 rounded-xl" />
+          <Image src="/logo.svg" alt="Aria" width={32} height={32} className="w-8 h-8 rounded-xl" />
           <span className="font-display text-xl font-bold text-slate-900">Aria</span>
         </Link>
         <Link href="/" className="text-sm text-slate-500 hover:text-slate-900">← Back to home</Link>

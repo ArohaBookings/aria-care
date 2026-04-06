@@ -23,7 +23,7 @@ export default async function NewShiftPage() {
       .from("participants")
       .select("id, full_name")
       .eq("organisation_id", profile.organisation_id)
-      .eq("is_active", true)
+      .eq("status", "active")
       .order("full_name"),
     supabase
       .from("users")

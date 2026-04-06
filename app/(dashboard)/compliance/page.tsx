@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import Link from "next/link";
 import { Shield, AlertCircle, CheckCircle, Clock, X } from "lucide-react";
 import { formatDate, daysUntil } from "@/lib/utils";
 
@@ -14,12 +13,12 @@ export default async function CompliancePage() {
   const [{ data: staffItems }, { data: planReviews }, { data: incidents }] = await Promise.all([
     supabase.from("staff_compliance").select("id, item_label, expiry_date, status, users(full_name)").eq("organisation_id", orgId).order("expiry_date"),
     supabase.from("participants").select("id, full_name, plan_end_date, status").eq("organisation_id", orgId).eq("status", "active").not("plan_end_date", "is", null).order("plan_end_date"),
-    supabase.from("incidents").select("id, incident_date, incident_type, severity, status, participants(full_name)").eq("organisation_id", orgId).neq("status", "closed").order("incident_date", { ascending: false }).limit(10),
+    supabase.from("incident_reports").select("id, incident_date, incident_type, severity, status, participants(full_name)").eq("organisation_id", orgId).neq("status", "closed").order("incident_date", { ascending: false }).limit(10),
   ]);
 
   const expired = staffItems?.filter(i => i.status === "expired") ?? [];
   const expiringSoon = staffItems?.filter(i => i.status === "expiring_soon") ?? [];
-  const compliant = staffItems?.filter(i => i.status === "active") ?? [];
+  const compliant = staffItems?.filter(i => i.status === "valid") ?? [];
 
   const plansDue30 = planReviews?.filter(p => { const d = daysUntil(p.plan_end_date); return d >= 0 && d <= 30; }) ?? [];
   const plansDue60 = planReviews?.filter(p => { const d = daysUntil(p.plan_end_date); return d > 30 && d <= 60; }) ?? [];

@@ -36,7 +36,7 @@ export default function InviteStaffPage() {
           </div>
           <div>
             <h2 className="font-display text-xl font-bold text-slate-900">Invite Team Member</h2>
-            <p className="text-sm text-slate-500">They'll receive an email to set up their account.</p>
+            <p className="text-sm text-slate-500">They&apos;ll receive an email to set up their account.</p>
           </div>
         </div>
 

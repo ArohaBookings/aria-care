@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No organisation" }, { status: 400 });
     }
 
-    // Only owners and managers can add compliance records for other staff.
-    if (!["owner", "manager"].includes(profile.role ?? "")) {
+    // Only owners and coordinators can add compliance records for other staff.
+    if (!["owner", "coordinator"].includes(profile.role ?? "")) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 

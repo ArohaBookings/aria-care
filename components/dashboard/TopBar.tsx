@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Search } from "lucide-react";
 
@@ -26,12 +27,26 @@ export default function TopBar({ userName, orgName }: { userName: string; orgNam
         <p className="text-xs text-slate-400 mt-0.5">{info.sub}</p>
       </div>
       <div className="flex items-center gap-2">
-        <button className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
+        <div className="hidden lg:block text-right mr-2">
+          <p className="text-sm font-semibold text-slate-900 truncate max-w-52">{userName || "Aria user"}</p>
+          <p className="text-[11px] text-slate-400 truncate max-w-52">{orgName || "Organisation"}</p>
+        </div>
+        <Link
+          href="/participants"
+          aria-label="Open participant directory"
+          title="Open participant directory"
+          className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all"
+        >
           <Search className="w-4 h-4" />
-        </button>
-        <button className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all relative">
+        </Link>
+        <Link
+          href="/settings?tab=notifications"
+          aria-label="Open notification settings"
+          title="Open notification settings"
+          className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all relative"
+        >
           <Bell className="w-4 h-4" />
-        </button>
+        </Link>
       </div>
     </header>
   );

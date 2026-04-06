@@ -12,7 +12,7 @@ export default function CTA() {
               Give your team their evenings back.
             </h2>
             <p className="text-lg text-white/90 max-w-2xl mx-auto mb-8">
-              Start your 14-day free trial. No credit card required. Setup takes 5 minutes.
+              Start your 14-day free trial with a secure card on file. Setup takes 5 minutes.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
               <Link
@@ -30,7 +30,7 @@ export default function CTA() {
             </div>
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-white/80">
               <span className="inline-flex items-center gap-1.5"><Check className="w-4 h-4" /> 14-day free trial</span>
-              <span className="inline-flex items-center gap-1.5"><Check className="w-4 h-4" /> No credit card</span>
+              <span className="inline-flex items-center gap-1.5"><Check className="w-4 h-4" /> Card required to activate</span>
               <span className="inline-flex items-center gap-1.5"><Check className="w-4 h-4" /> Cancel anytime</span>
             </div>
           </div>

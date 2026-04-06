@@ -90,7 +90,7 @@ export default function Sidebar({ userEmail, userName, userRole, orgName, subscr
       {/* Upgrade CTA */}
       {!isPro && (
         <div className="px-3 pb-3">
-          <Link href="/settings?tab=billing" className="block bg-gradient-to-br from-aria-50 to-sky-50 border border-aria-100 rounded-xl p-4 hover:border-aria-200 transition-all">
+          <Link href="/billing" className="block bg-gradient-to-br from-aria-50 to-sky-50 border border-aria-100 rounded-xl p-4 hover:border-aria-200 transition-all">
             <p className="text-xs font-bold text-aria-700 mb-1">Upgrade to Growth</p>
             <p className="text-[11px] text-slate-500 leading-relaxed">Unlock billing assistant, rostering & participant portal</p>
           </Link>

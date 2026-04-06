@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Sparkles, Building2, Users, Check, ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -104,7 +105,7 @@ export default function OnboardingPage() {
       <div className="w-full max-w-lg relative z-10">
         {/* Logo */}
         <div className="flex items-center gap-2 justify-center mb-8">
-          <img src="/logo.svg" alt="Aria" className="w-10 h-10 rounded-2xl" />
+          <Image src="/logo.svg" alt="Aria" width={40} height={40} className="w-10 h-10 rounded-2xl" />
           <span className="font-display text-2xl font-bold text-slate-900">Aria</span>
         </div>
 
@@ -176,7 +177,7 @@ export default function OnboardingPage() {
                 <Sparkles className="w-6 h-6 text-aria-600" />
               </div>
               <h2 className="font-display text-2xl font-bold text-slate-900 mb-1">Invite your team</h2>
-              <p className="text-sm text-slate-500 mb-6">Send your first team member an invite. They'll get a signup link.</p>
+              <p className="text-sm text-slate-500 mb-6">Send your first team member an invite. They&apos;ll get a signup link.</p>
               {inviteSent ? (
                 <div className="text-center py-6">
                   <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto mb-3">
@@ -215,7 +216,7 @@ export default function OnboardingPage() {
               </div>
               <h2 className="font-display text-2xl font-bold text-slate-900 mb-1">Start your 14-day free trial</h2>
               <p className="text-sm text-slate-500 mb-5">
-                Pick a plan to start. You won&apos;t be charged until your trial ends — cancel anytime in Settings. A card is required to activate your workspace.
+                Pick a plan to start. You won&apos;t be charged until your trial ends — cancel anytime from Billing. A card is required to activate your workspace.
               </p>
 
               <div className="space-y-2 mb-5">

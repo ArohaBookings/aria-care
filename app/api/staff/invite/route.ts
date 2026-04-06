@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { getAppUrl } from "@/lib/app-url";
 
 const adminClient = createAdminClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,6 +10,7 @@ const adminClient = createAdminClient(
 
 export async function POST(request: NextRequest) {
   try {
+    const appUrl = getAppUrl(request);
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
         organisation_id: profile.organisation_id,
         invited_role: role ?? "support_worker",
       },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+      redirectTo: `${appUrl}/auth/complete?type=invite`,
     });
 
     if (inviteError) throw inviteError;

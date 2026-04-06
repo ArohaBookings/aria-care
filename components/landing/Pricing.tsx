@@ -18,7 +18,6 @@ const PLANS = [
     ],
     cta: "Start free trial",
     popular: false,
-    priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID,
   },
   {
     name: "Growth",
@@ -37,7 +36,6 @@ const PLANS = [
     ],
     cta: "Start free trial",
     popular: true,
-    priceId: process.env.NEXT_PUBLIC_STRIPE_GROWTH_PRICE_ID,
   },
   {
     name: "Business",
@@ -56,7 +54,6 @@ const PLANS = [
     ],
     cta: "Start free trial",
     popular: false,
-    priceId: process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID,
   },
 ];
 
@@ -129,7 +126,7 @@ export default function Pricing() {
 
         <div className="mt-8 text-center">
           <p className="text-sm text-slate-500">
-            All plans include a 14-day free trial · No credit card required · Cancel anytime
+            All plans include a 14-day free trial · Card required to activate · Cancel anytime before renewal
           </p>
           <p className="text-sm text-slate-500 mt-1">
             Need more than 75 participants?{" "}

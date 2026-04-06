@@ -70,7 +70,7 @@ export default function Hero() {
 
         {/* Trust bar */}
         <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-slate-500 mb-16 animate-fade-up-4">
-          {["No credit card required", "NDIS compliant", "Cancel anytime", "Setup in 5 minutes"].map((item) => (
+          {["Card-secured free trial", "NDIS compliant", "Cancel anytime", "Setup in 5 minutes"].map((item) => (
             <span key={item} className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-aria-500" />
               {item}
@@ -102,9 +102,9 @@ export default function Hero() {
                 </div>
                 <div className="bg-slate-50 rounded-xl p-4 mb-4">
                   <p className="text-sm text-slate-600 leading-relaxed italic">
-                    "Supported Marcus with his morning routine today. He was in good spirits and engaged well. 
+                    &ldquo;Supported Marcus with his morning routine today. He was in good spirits and engaged well.
                     We worked on his meal prep goals — he independently made toast and a coffee with minimal 
-                    prompting. Had a brief episode of anxiety around 10am, managed with breathing exercises..."
+                    prompting. Had a brief episode of anxiety around 10am, managed with breathing exercises...&rdquo;
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

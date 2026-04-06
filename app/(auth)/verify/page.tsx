@@ -20,7 +20,11 @@ function VerifyContent() {
     }
     setStatus("sending");
     setErrorMsg("");
-    const { error } = await supabase.auth.resend({ type: "signup", email });
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/complete?type=signup` },
+    });
     if (error) {
       setStatus("error");
       setErrorMsg(error.message);

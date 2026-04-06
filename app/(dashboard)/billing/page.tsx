@@ -26,10 +26,10 @@ function BillingPageInner() {
   const [upgradeLoading, setUpgradeLoading] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const supabase = createClient();
 
   useEffect(() => {
     (async () => {
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
       const { data: orgData } = await supabase.from("organisations").select("*").eq("id", profile?.organisation_id).single();
@@ -51,6 +51,7 @@ function BillingPageInner() {
   const handleCancelTrial = async () => {
     setCancelling(true);
     try {
+      const supabase = createClient();
       const res = await fetch("/api/stripe/cancel-trial", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to cancel");

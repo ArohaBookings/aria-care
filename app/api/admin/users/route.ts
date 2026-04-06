@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminSupabase, requireAdmin, logAdminAction } from "@/lib/supabase/admin";
+import { getAppUrl } from "@/lib/app-url";
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const appUrl = getAppUrl(request);
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
       case "reset_password": {
         // Send password reset email via Supabase
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+          redirectTo: `${appUrl}/auth/complete?type=recovery`,
         });
         if (error) throw error;
         await logAdminAction(admin.id, admin.email, "reset_password", "user", userId, { email });

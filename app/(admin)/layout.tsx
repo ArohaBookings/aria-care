@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminSupabase } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/supabase/admin";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -8,16 +8,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?redirect=/admin");
 
-  // Verify admin status
-  const adminSb = createAdminSupabase();
-  const { data: adminUser } = await adminSb
-    .from("admin_users")
-    .select("id, email, full_name, is_active")
-    .eq("id", user.id)
-    .eq("is_active", true)
-    .single();
-
-  if (!adminUser) redirect("/dashboard?error=not_admin");
+  let adminUser;
+  try {
+    adminUser = await requireAdmin(user.id);
+  } catch {
+    redirect("/dashboard?error=not_admin");
+  }
 
   return (
     <div className="flex h-screen bg-slate-950 overflow-hidden">

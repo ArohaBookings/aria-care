@@ -29,7 +29,7 @@ function SignupContent() {
     const { error } = await supabase.auth.signUp({
       email, password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/complete?type=signup`,
         data: { full_name: name, organisation_name: org, plan_intent: plan },
       },
     });
@@ -41,7 +41,7 @@ function SignupContent() {
     setLoading(true);
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback`, queryParams: { plan_intent: plan } },
+      options: { redirectTo: `${window.location.origin}/auth/complete?type=signup`, queryParams: { plan_intent: plan } },
     });
   };
 
@@ -71,7 +71,7 @@ function SignupContent() {
           ) : (
             <>
               <h1 className="font-display text-2xl font-bold text-slate-900 mb-1">Start your free trial</h1>
-              <p className="text-sm text-slate-500 mb-4">14 days free · No credit card required</p>
+              <p className="text-sm text-slate-500 mb-4">14 days free · Card required to activate your workspace</p>
 
               {PLAN_LABELS[plan] && (
                 <div className="flex items-center gap-2 bg-aria-50 border border-aria-100 rounded-xl px-3 py-2 mb-5">

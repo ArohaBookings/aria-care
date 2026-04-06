@@ -13,9 +13,12 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const type = searchParams.get("type"); // "recovery" | "signup" | "magiclink" | "invite" | null
   const redirectParam = searchParams.get("redirect") || "/dashboard";
+  const passthroughParams = new URLSearchParams(searchParams);
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=missing_code`);
+    const redirectUrl = new URL("/auth/complete", origin);
+    passthroughParams.forEach((value, key) => redirectUrl.searchParams.set(key, value));
+    return NextResponse.redirect(redirectUrl);
   }
 
   const supabase = await createClient();

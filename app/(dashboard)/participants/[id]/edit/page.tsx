@@ -96,9 +96,10 @@ export default function EditParticipantPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const { error: updErr } = await supabase
-      .from("participants")
-      .update({
+    const res = await fetch(`/api/participants/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         ...form,
         plan_budget: form.plan_budget ? parseFloat(form.plan_budget) : null,
         funding_remaining_pct: form.funding_remaining_pct ? parseFloat(form.funding_remaining_pct) : 100,
@@ -106,10 +107,11 @@ export default function EditParticipantPage() {
         plan_start_date: form.plan_start_date || null,
         plan_end_date: form.plan_end_date || null,
         updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-    if (updErr) {
-      setError(updErr.message);
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Failed to update participant");
       setLoading(false);
     } else {
       router.push(`/participants/${id}`);
@@ -123,9 +125,10 @@ export default function EditParticipantPage() {
     );
     if (!confirmed) return;
     setDeleting(true);
-    const { error: delErr } = await supabase.from("participants").delete().eq("id", id);
-    if (delErr) {
-      setError(delErr.message);
+    const res = await fetch(`/api/participants/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Failed to delete participant");
       setDeleting(false);
     } else {
       router.push("/participants");
