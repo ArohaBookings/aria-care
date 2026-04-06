@@ -211,7 +211,12 @@ export default function NotesPage() {
     }
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase.from("users").select("full_name, organisation_id, role").eq("id", user!.id).single();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const { data: profile } = await supabase.from("users").select("full_name, organisation_id, role").eq("id", user.id).single();
     await supabase.from("progress_notes").insert({
       organisation_id: profile?.organisation_id,
       participant_id: selectedParticipant || null,

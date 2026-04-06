@@ -30,7 +30,13 @@ export default function NewShiftForm({ participants, workers }: { participants: 
 
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
+    if (!user) {
+      toast.error("Your session has expired", "Please sign in again.");
+      router.push("/login");
+      return;
+    }
+
+    const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
 
     const { error } = await supabase.from("shifts").insert({
       organisation_id: profile!.organisation_id,

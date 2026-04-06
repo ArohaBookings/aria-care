@@ -28,7 +28,12 @@ function SettingsContent() {
     (async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      const { data: p } = await supabase.from("users").select("full_name, email, organisation_id, notification_preferences").eq("id", user!.id).single();
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const { data: p } = await supabase.from("users").select("full_name, email, organisation_id, notification_preferences").eq("id", user.id).single();
       if (p) {
         setProfile({ full_name: p.full_name ?? "", email: user?.email ?? "" });
         const prefs = (p as unknown as { notification_preferences?: Record<string, boolean> }).notification_preferences ?? {};
@@ -48,7 +53,12 @@ function SettingsContent() {
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("users").update({ full_name: profile.full_name }).eq("id", user!.id);
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    await supabase.from("users").update({ full_name: profile.full_name }).eq("id", user.id);
     setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500);
   };
 
@@ -56,7 +66,12 @@ function SettingsContent() {
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: p } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const { data: p } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
     if (p?.organisation_id) await supabase.from("organisations").update(org).eq("id", p.organisation_id);
     setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500);
   };
@@ -65,7 +80,12 @@ function SettingsContent() {
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("users").update({ notification_preferences: notifications } as unknown as Record<string, unknown>).eq("id", user!.id);
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    await supabase.from("users").update({ notification_preferences: notifications } as unknown as Record<string, unknown>).eq("id", user.id);
     setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500);
   };
 

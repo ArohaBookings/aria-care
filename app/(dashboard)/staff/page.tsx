@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Users, Plus, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { formatDate, daysUntil } from "@/lib/utils";
 
@@ -8,7 +9,9 @@ export const metadata = { title: "Staff | Aria" };
 export default async function StaffPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("users").select("organisation_id, role").eq("id", user!.id).single();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase.from("users").select("organisation_id, role").eq("id", user.id).single();
   const orgId = profile?.organisation_id;
 
   const { data: staff } = await supabase

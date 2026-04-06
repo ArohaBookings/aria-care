@@ -31,7 +31,12 @@ function BillingPageInner() {
     (async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
       const { data: orgData } = await supabase.from("organisations").select("*").eq("id", profile?.organisation_id).single();
       const { count } = await supabase.from("participants").select("*", { count: "exact", head: true }).eq("organisation_id", profile?.organisation_id).eq("status", "active");
       setOrg(orgData);
@@ -59,7 +64,12 @@ function BillingPageInner() {
       setCancelOpen(false);
       // Refetch
       const { data: { user } } = await supabase.auth.getUser();
-      const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
       const { data: orgData } = await supabase.from("organisations").select("*").eq("id", profile?.organisation_id).single();
       setOrg(orgData);
     } catch (e) {

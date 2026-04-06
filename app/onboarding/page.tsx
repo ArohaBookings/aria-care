@@ -46,7 +46,12 @@ export default function OnboardingPage() {
     if (!orgName.trim()) return;
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
     await supabase.from("organisations").update({ name: orgName, abn }).eq("id", profile?.organisation_id);
     setLoading(false);
     setStep(1);
@@ -56,7 +61,12 @@ export default function OnboardingPage() {
     if (!participantName.trim()) { setStep(2); return; }
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
     await supabase.from("participants").insert({
       organisation_id: profile?.organisation_id,
       full_name: participantName,

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Calendar, Plus, AlertCircle, Clock } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { format, startOfWeek, addDays } from "date-fns";
@@ -9,7 +10,9 @@ export const metadata = { title: "Rostering | Aria" };
 export default async function RosteringPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
   const orgId = profile?.organisation_id;
 
   const today = new Date();

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Mic, Users, AlertTriangle, Clock, ArrowRight, CheckCircle, Shield, Calendar } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
@@ -8,7 +9,9 @@ export const metadata = { title: "Dashboard | Aria" };
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("users").select("full_name, organisation_id, organisations(name)").eq("id", user!.id).single();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase.from("users").select("full_name, organisation_id, organisations(name)").eq("id", user.id).single();
   const orgId = profile?.organisation_id;
 
   const [{ count: participantCount }, { count: pendingNotes }, { data: expiringCompliance }, { data: recentNotes }, { data: upcomingShifts }] = await Promise.all([

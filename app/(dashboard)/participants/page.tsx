@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Users, Plus, ArrowRight, AlertCircle } from "lucide-react";
 import { formatDate, daysUntil } from "@/lib/utils";
 import { SearchInput } from "@/components/dashboard/SearchInput";
@@ -9,7 +10,9 @@ export const metadata = { title: "Participants | Aria" };
 export default async function ParticipantsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
   const orgId = profile?.organisation_id;
   const { q } = await searchParams;
 

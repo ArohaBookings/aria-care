@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { Shield, AlertCircle, CheckCircle, Clock, X } from "lucide-react";
 import { formatDate, daysUntil } from "@/lib/utils";
 
@@ -7,7 +8,9 @@ export const metadata = { title: "Compliance | Aria" };
 export default async function CompliancePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user!.id).single();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
   const orgId = profile?.organisation_id;
 
   const [{ data: staffItems }, { data: planReviews }, { data: incidents }] = await Promise.all([
