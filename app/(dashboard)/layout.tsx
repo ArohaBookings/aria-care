@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
+import { isFallbackAdminEmail } from "@/lib/admin-emails";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 
@@ -34,6 +35,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const headersList = await headers();
   const currentPath = headersList.get("x-invoke-path") ?? "";
   const isBypass = GATE_BYPASS.some((p) => currentPath.startsWith(p));
+
+  if (currentPath === "/dashboard") {
+    let isAdminUser = isFallbackAdminEmail(user.email ?? "");
+
+    if (!isAdminUser) {
+      const adminSb = createAdminSupabase();
+      const { data: adminRecord } = await adminSb
+        .from("admin_users")
+        .select("id")
+        .eq("id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      isAdminUser = !!adminRecord;
+    }
+
+    if (isAdminUser) {
+      redirect("/admin");
+    }
+  }
 
   if (!isBypass && org) {
     const hasRealOrgName = org.name && org.name !== "My Organisation";
