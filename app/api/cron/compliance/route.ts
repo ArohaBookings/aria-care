@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendComplianceReminder } from "@/lib/email/send";
+import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 
 // Daily cron: refresh compliance statuses and email owners about
 // items expiring within 30 days (or already expired).
@@ -17,11 +18,7 @@ function unauthorized() {
 }
 
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
-
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${secret}`) return unauthorized();
+  if (!isAuthorizedCronRequest(request)) return unauthorized();
 
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
