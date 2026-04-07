@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, ArrowLeft, Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getPostLoginRedirect } from "@/lib/admin-emails";
 
 function LoginContent() {
   const [email, setEmail] = useState("");
@@ -22,7 +23,10 @@ function LoginContent() {
     setLoading(true); setError("");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) { setError(error.message); setLoading(false); }
-    else { router.push(redirect); router.refresh(); }
+    else {
+      router.push(getPostLoginRedirect(email, redirect));
+      router.refresh();
+    }
   };
 
   const handleMagic = async (e: React.FormEvent) => {

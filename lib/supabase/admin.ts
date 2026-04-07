@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
+import { isFallbackAdminEmail } from "@/lib/admin-emails";
 
 const FALLBACK_ADMIN_EMAILS = new Set(
   [
-    "leoanthonybons@gmail.com",
     ...(process.env.ADMIN_EMAILS?.split(",") ?? []),
   ]
     .map((email) => email.trim().toLowerCase())
@@ -67,7 +67,10 @@ export async function requireAdmin(userId: string): Promise<{ id: string; email:
   const authUser = authUserData.user;
   const authEmail = authUser?.email?.toLowerCase() ?? "";
 
-  if (authError || !authUser || !FALLBACK_ADMIN_EMAILS.has(authEmail)) {
+  const isAllowedFallbackAdmin =
+    isFallbackAdminEmail(authEmail) || FALLBACK_ADMIN_EMAILS.has(authEmail);
+
+  if (authError || !authUser || !isAllowedFallbackAdmin) {
     throw new Error("Forbidden: admin access required");
   }
 

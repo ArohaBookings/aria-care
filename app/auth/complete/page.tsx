@@ -5,16 +5,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getPostLoginRedirect } from "@/lib/admin-emails";
 
 type CompletionState = "working" | "success" | "error";
 type EmailFlowType = "signup" | "invite" | "magiclink" | "recovery" | "email_change" | "email";
 
 const OTP_TYPES = new Set<EmailFlowType>(["signup", "invite", "magiclink", "recovery", "email_change", "email"]);
-
-function getSafeRedirect(candidate: string | null) {
-  if (!candidate) return "/dashboard";
-  return candidate.startsWith("/") ? candidate : "/dashboard";
-}
 
 function AuthCompleteContent() {
   const router = useRouter();
@@ -80,9 +76,12 @@ function AuthCompleteContent() {
             const orgRel = (profile as unknown as { organisations: { name: string | null } | { name: string | null }[] | null } | null)?.organisations;
             const orgName = Array.isArray(orgRel) ? orgRel[0]?.name : orgRel?.name;
             const needsOnboarding = !profile?.organisation_id || !orgName || orgName === "My Organisation";
-            const destination = needsOnboarding
-              ? "/onboarding"
-              : getSafeRedirect(searchParams.get("redirect"));
+            const preferredDestination = getPostLoginRedirect(user.email, searchParams.get("redirect"));
+            const destination = preferredDestination === "/admin"
+              ? preferredDestination
+              : needsOnboarding
+                ? "/onboarding"
+                : preferredDestination;
 
             router.replace(destination);
             return;

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getPostLoginRedirect } from "@/lib/admin-emails";
 import { NextResponse } from "next/server";
 
 // Supabase OAuth / magic-link / email-confirm / password-recovery callback.
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const type = searchParams.get("type"); // "recovery" | "signup" | "magiclink" | "invite" | null
-  const redirectParam = searchParams.get("redirect") || "/dashboard";
+  const redirectParam = searchParams.get("redirect");
   const passthroughParams = new URLSearchParams(searchParams);
 
   if (!code) {
@@ -40,6 +41,11 @@ export async function GET(request: Request) {
   // users whose raw_user_meta_data had no organisation_name.
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
+    const preferredDestination = getPostLoginRedirect(user.email, redirectParam);
+    if (preferredDestination === "/admin") {
+      return NextResponse.redirect(`${origin}${preferredDestination}`);
+    }
+
     const { data: profile } = await supabase
       .from("users")
       .select("organisation_id, organisations(name)")
@@ -54,5 +60,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}${redirectParam}`);
+  return NextResponse.redirect(`${origin}${getPostLoginRedirect(user?.email, redirectParam)}`);
 }
