@@ -30,6 +30,7 @@ type EmailType =
   | "compliance_reminder"
   | "trial_expiry"
   | "welcome"
+  | "signup_confirmation"
   | "note_approved"
   | "generic";
 
@@ -226,6 +227,27 @@ export async function sendWelcomeEmail(args: {
        <p>If you have any questions, just reply to this email.</p>`,
       "Open Aria",
       `${APP_URL}/dashboard`
+    ),
+  });
+}
+
+export async function sendSignupConfirmationEmail(args: {
+  to: string;
+  fullName: string;
+  organisationName: string;
+  actionLink: string;
+}) {
+  return sendEmail({
+    to: args.to,
+    type: "signup_confirmation",
+    subject: "Confirm your Aria signup",
+    html: shell(
+      `Welcome to Aria, ${args.fullName.split(" ")[0]}`,
+      `<p>Your workspace for <strong>${args.organisationName}</strong> is almost ready.</p>
+       <p>Click the button below to confirm your email, activate your account, and continue into onboarding and Stripe checkout for your 14-day free trial.</p>
+       <p style="color:#64748b;font-size:14px">Card details are collected at checkout to start the trial, but you won't be charged until the trial ends.</p>`,
+      "Confirm my email",
+      args.actionLink
     ),
   });
 }

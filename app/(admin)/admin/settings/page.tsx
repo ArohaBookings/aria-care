@@ -98,7 +98,7 @@ export default function AdminSettingsPage() {
             ["AI Engine", "OpenAI GPT-4o (+ Anthropic fallback)"],
             ["Database", "Supabase Postgres (RLS enabled)"],
             ["Hosting", "Vercel Edge Network"],
-            ["Auth", "Supabase Auth (email + Google OAuth)"],
+            ["Auth", "Supabase Auth (email sign-in, optional OAuth ready)"],
           ].map(([key, val]) => (
             <div key={key}>
               <p className="text-slate-500">{key}</p>
