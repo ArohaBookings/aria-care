@@ -18,6 +18,7 @@ const PLAN_CONFIG: Record<string, { name: string; price: number; participants: n
 function BillingPageInner() {
   const searchParams = useSearchParams();
   const expired = searchParams.get("expired") === "true";
+  const reason = searchParams.get("reason");
   const toast = useToast();
   const [org, setOrg] = useState<OrgData | null>(null);
   const [participantCount, setParticipantCount] = useState(0);
@@ -95,6 +96,7 @@ function BillingPageInner() {
   const onStripeTrial = org?.subscription_status === "trialing";
   const trialEndDate = org?.trial_ends_at ? new Date(org.trial_ends_at) : null;
   const usagePct = Math.round((participantCount / currentPlan.participants) * 100);
+  const nextUsagePlan = org?.subscription_tier === "growth" ? "business" : "growth";
 
   return (
     <div className="p-6 max-w-4xl space-y-6">
@@ -133,6 +135,34 @@ function BillingPageInner() {
             >
               <X className="w-3.5 h-3.5" /> Cancel trial
             </button>
+          </div>
+        </div>
+      )}
+
+      {reason === "note-limit" && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="w-5 h-5 text-amber-700" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-amber-950 mb-1">Your team has reached its AI note generation limit</p>
+            <p className="text-sm text-amber-800">
+              Upgrade to unlock more voice notes, faster documentation throughput, and more room for busy teams.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {reason === "participant-limit" && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="w-5 h-5 text-amber-700" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-amber-950 mb-1">You have used every participant slot on this plan</p>
+            <p className="text-sm text-amber-800">
+              Upgrade before adding more participants so your team can keep onboarding without workarounds.
+            </p>
           </div>
         </div>
       )}
@@ -177,9 +207,16 @@ function BillingPageInner() {
             />
           </div>
           {usagePct >= 80 && (
-            <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700">
-              <AlertCircle className="w-3.5 h-3.5" />
-              {usagePct >= 100 ? "You've reached your participant limit. Upgrade to add more." : `${currentPlan.participants - participantCount} spots remaining`}
+            <div className="flex items-center justify-between gap-3 mt-2 text-xs text-amber-700">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                {usagePct >= 100 ? "You've reached your participant limit. Upgrade to add more." : `${currentPlan.participants - participantCount} spots remaining`}
+              </div>
+              {usagePct >= 100 && org?.subscription_tier !== "business" && (
+                <button onClick={() => handleUpgrade(nextUsagePlan)} className="font-bold text-amber-800 hover:text-amber-900">
+                  Upgrade now
+                </button>
+              )}
             </div>
           )}
         </div>

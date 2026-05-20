@@ -15,6 +15,7 @@ export default function NewParticipantPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [upgradeHref, setUpgradeHref] = useState("");
   const [form, setForm] = useState({
     full_name: "", ndis_number: "", date_of_birth: "", email: "",
     phone: "", address: "", support_category: "Daily Activities",
@@ -27,7 +28,7 @@ export default function NewParticipantPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setUpgradeHref("");
     const res = await fetch("/api/participants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -39,6 +40,7 @@ export default function NewParticipantPage() {
     const data = await res.json();
     if (!res.ok) {
       setError(data.error ?? "Failed to add participant");
+      setUpgradeHref(data.upgradeUrl ?? "");
       setLoading(false);
       return;
     }
@@ -117,7 +119,16 @@ export default function NewParticipantPage() {
           <textarea value={form.notes} onChange={e => update("notes", e.target.value)} rows={3} placeholder="Any important context for support workers..." className="input resize-none" />
         </div>
 
-        {error && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{error}</div>}
+        {error && (
+          <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+            <p>{error}</p>
+            {upgradeHref && (
+              <Link href={upgradeHref} className="mt-2 inline-flex font-semibold text-red-700 hover:text-red-800">
+                Upgrade plan
+              </Link>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-3">
           <button type="submit" disabled={loading} className="btn-primary py-3 px-7">

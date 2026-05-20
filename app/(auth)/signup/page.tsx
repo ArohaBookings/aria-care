@@ -57,7 +57,7 @@ function SignupContent() {
         throw new Error(signInError.message || "We created your account but could not sign you in automatically");
       }
 
-      router.push("/onboarding");
+      router.push(`/onboarding?plan=${encodeURIComponent(plan)}`);
       router.refresh();
     } catch (signupError) {
       setError(signupError instanceof Error ? signupError.message : "Could not create your account");
@@ -110,7 +110,7 @@ function SignupContent() {
             <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create account"}
             </button>
-            <p className="text-xs text-slate-400 text-center">You&apos;ll go straight into onboarding and Stripe checkout to activate your 14-day trial. By signing up you agree to our <Link href="/terms" className="text-aria-600">Terms</Link> and <Link href="/privacy" className="text-aria-600">Privacy Policy</Link></p>
+            <p className="text-xs text-slate-400 text-center">You&apos;ll finish a short setup checklist, then activate your 14-day trial through Stripe. By signing up you agree to our <Link href="/terms" className="text-aria-600">Terms</Link> and <Link href="/privacy" className="text-aria-600">Privacy Policy</Link></p>
           </form>
         </div>
         <p className="text-center text-sm text-slate-500 mt-5">

@@ -1,7 +1,8 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Mic, Square, Loader2, Check, X, ChevronDown, ChevronUp, Copy, AlertTriangle, FileText, Plus } from "lucide-react";
+import { Mic, Square, Loader2, Check, ChevronDown, ChevronUp, Copy, AlertTriangle, FileText, ArrowRight, RotateCcw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { timeAgo } from "@/lib/utils";
 
@@ -28,6 +29,28 @@ interface SavedNote {
   support_level: string;
   author_name: string;
   participants: { full_name: string };
+}
+
+type UpgradePrompt = {
+  message: string;
+  href: string;
+  label: string;
+} | null;
+
+function getSupportedAudioMimeType() {
+  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return "";
+  return [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+  ].find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+}
+
+function audioExtensionFromMimeType(type: string) {
+  if (type.includes("mp4")) return "m4a";
+  if (type.includes("ogg")) return "ogg";
+  return "webm";
 }
 
 async function fetchParticipants() {
@@ -82,6 +105,7 @@ export default function NotesPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [upgradePrompt, setUpgradePrompt] = useState<UpgradePrompt>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved">("all");
   const [viewerRole, setViewerRole] = useState("support_worker");
 
@@ -116,6 +140,13 @@ export default function NotesPage() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      mediaRecorder.current?.stream.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
   const loadNotes = async () => {
     const { role, notes: latestNotes } = await fetchNotesAndRole();
     setViewerRole(role);
@@ -129,8 +160,14 @@ export default function NotesPage() {
     }
 
     try {
+      setError("");
+      setUpgradePrompt(null);
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+        throw new Error("Your browser does not support in-browser recording. Please use text mode for this note.");
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder.current = new MediaRecorder(stream);
+      const mimeType = getSupportedAudioMimeType();
+      mediaRecorder.current = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       audioChunks.current = [];
       mediaRecorder.current.ondataavailable = (e) => audioChunks.current.push(e.data);
       mediaRecorder.current.onstop = handleAudioStop;
@@ -154,11 +191,17 @@ export default function NotesPage() {
   };
 
   const handleAudioStop = async () => {
-    const audioBlob = new Blob(audioChunks.current, { type: "audio/webm" });
+    const mimeType = mediaRecorder.current?.mimeType || "audio/webm";
+    if (audioChunks.current.length === 0) {
+      setError("No audio was captured. Please check your microphone and try again.");
+      setState("error");
+      return;
+    }
+    const audioBlob = new Blob(audioChunks.current, { type: mimeType });
     setState("processing");
     try {
       const formData = new FormData();
-      formData.append("audio", audioBlob, "recording.webm");
+      formData.append("audio", audioBlob, `recording.${audioExtensionFromMimeType(mimeType)}`);
       const res = await fetch("/api/transcribe", { method: "POST", body: formData });
       if (!res.ok) {
         const err = await res.json();
@@ -176,6 +219,7 @@ export default function NotesPage() {
   const generateNote = async (input: string) => {
     setState("processing");
     setError("");
+    setUpgradePrompt(null);
     const participant = participants.find(p => p.id === selectedParticipant);
     try {
       const res = await fetch("/api/generate-note", {
@@ -188,8 +232,18 @@ export default function NotesPage() {
           participantGoals: participant?.goals ?? [],
         }),
       });
-      if (!res.ok) throw new Error((await res.json()).error);
       const data = await res.json();
+      if (!res.ok) {
+        if (data.code === "NOTE_LIMIT_REACHED") {
+          const planLabel = data.upgradePlan ? `Upgrade to ${data.upgradePlan}` : "Manage billing";
+          setUpgradePrompt({
+            message: data.error ?? "You have reached your AI note generation limit.",
+            href: data.upgradeUrl ?? "/billing",
+            label: planLabel,
+          });
+        }
+        throw new Error(data.error ?? "Generation failed");
+      }
       setGenerated(data.note);
       setState("done");
     } catch (e: unknown) {
@@ -199,6 +253,10 @@ export default function NotesPage() {
   };
 
   const handleTextSubmit = async () => {
+    if (!selectedParticipant) {
+      setError("Please select a participant before generating a note.");
+      return;
+    }
     if (!textInput.trim()) return;
     setTranscript(textInput);
     await generateNote(textInput);
@@ -217,7 +275,7 @@ export default function NotesPage() {
     }
 
     const { data: profile } = await supabase.from("users").select("full_name, organisation_id, role").eq("id", user.id).single();
-    await supabase.from("progress_notes").insert({
+    const { error: saveError } = await supabase.from("progress_notes").insert({
       organisation_id: profile?.organisation_id,
       participant_id: selectedParticipant || null,
       author_id: user?.id,
@@ -233,6 +291,11 @@ export default function NotesPage() {
       input_method: inputMode,
       status: profile?.role === "support_worker" ? "pending" : "approved",
     });
+    if (saveError) {
+      setSaving(false);
+      setError(saveError.message);
+      return;
+    }
     setSaving(false); setSaved(true);
     setTimeout(() => { setSaved(false); setState("idle"); setGenerated(null); setTextInput(""); setTranscript(""); }, 2000);
     loadNotes();
@@ -338,6 +401,15 @@ export default function NotesPage() {
             {error && (
               <div className="mt-3 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</div>
             )}
+
+            {upgradePrompt && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                <p className="text-xs font-semibold text-amber-900">{upgradePrompt.message}</p>
+                <Link href={upgradePrompt.href} className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 hover:text-amber-900">
+                  {upgradePrompt.label} <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Generated note preview */}
@@ -357,6 +429,9 @@ export default function NotesPage() {
               </div>
               <button onClick={saveNote} disabled={saving || saved} className="btn-primary w-full justify-center">
                 {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : saved ? <><Check className="w-4 h-4" /> Saved!</> : "Save & File Note"}
+              </button>
+              <button onClick={() => { setGenerated(null); setState("idle"); setTranscript(""); }} className="btn-secondary w-full justify-center mt-2">
+                <RotateCcw className="w-4 h-4" /> Start another draft
               </button>
             </div>
           )}
