@@ -155,6 +155,11 @@ SAFETY AND STYLE:
 - Avoid words/phrases like "utilized", "proceeded comfortably", "demonstrated significant improvement", "it is recommended", "non-compliant", "refused" unless explicitly stated and necessary, and "aggressive" unless explicitly stated and contextually necessary.
 - Prefer plain support language: used, continued, appeared settled, became upset/anxious, was supported to, needed prompting, no concerns noted, follow up next shift.
 
+COMPLIANCE DETAILS (date, location, worker):
+- A complete record usually includes the date, time, location of support, and the worker's name.
+- If OPTIONAL CONTEXT provides any of date, shift time, location, or worker/staff name, open the note with a short "Shift details:" line listing only the ones provided (e.g. "Shift details: 14 May 2026, 3:00-6:00pm, participant's home, worker: Sam").
+- Do NOT invent a date, time, location, or worker name. If any of these are missing, add the missing ones to the "Optional details you may want to add:" checklist instead.
+
 NOTE STRUCTURES:
 For progress notes, default to these exact headings:
 Progress Note
@@ -232,6 +237,7 @@ FORMAT OPTIONS:
 - If OUTPUT FORMAT is Incident summary, prioritise incident/risk content without minimising it.
 - If OUTPUT FORMAT is Plain paragraph, only use a paragraph when specifically requested.
 - If OUTPUT FORMAT is Bullet summary, use clean bullets under headings.
+- If OUTPUT FORMAT is SOAP note, use exactly these four headings instead of the default ones: Subjective (what the participant said or expressed, in their words where possible), Objective (what the worker observed and did, factual), Assessment (a brief factual summary of how the support went — no diagnosis or clinical judgement), Plan (follow-up and next-shift actions).
 
 QUALITY REVIEW PASS:
 Before returning, internally check:

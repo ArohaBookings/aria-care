@@ -38,7 +38,7 @@ type RecordingState = "idle" | "recording" | "processing" | "done" | "error";
 type NoteType = "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly" | "dot_point" | "coordinator_summary" | "daily_snapshot";
 type DetailLevel = "concise" | "balanced" | "detailed";
 type InputMode = "voice" | "text" | "multi";
-type FormattingMode = "structured" | "short" | "detailed" | "handover_only" | "incident_summary" | "plain" | "paragraph" | "bullets";
+type FormattingMode = "structured" | "short" | "detailed" | "handover_only" | "incident_summary" | "plain" | "paragraph" | "bullets" | "soap";
 type SoloView = "worker" | "participant" | "handover" | "transcript";
 
 interface SignoffData {
@@ -107,10 +107,14 @@ const FORMAT_LABELS: Record<FormattingMode, string> = {
   plain: "Plain text",
   paragraph: "Short paragraph",
   bullets: "Bullet summary",
+  soap: "SOAP note",
 };
 
 const OPTIONAL_DETAILS_CHECKLIST = [
+  "Date of shift",
   "Shift time",
+  "Location of support",
+  "Worker name",
   "Participant mood on arrival",
   "Any follow-up for next worker",
   "Whether family/admin were notified",
@@ -121,7 +125,10 @@ const LOCAL_DRAFT_KEY = "aria-care-solo-local-draft-v2";
 
 const DEFAULT_CONTEXT = {
   participant: "",
+  shiftDate: "",
   shiftTime: "",
+  location: "",
+  worker: "",
   supportProvided: "",
   goals: "",
   mood: "",
@@ -964,7 +971,10 @@ export default function SoloNotesExperience() {
                 <p className="text-xs font-bold text-slate-700 mb-2">Optional context</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input className="input" value={context.participant} onChange={(e) => setContext({ ...context, participant: e.target.value })} placeholder="Initials or nickname only" />
-                  <input className="input" value={context.shiftTime} onChange={(e) => setContext({ ...context, shiftTime: e.target.value })} placeholder="Date/time of shift" />
+                  <input className="input" value={context.shiftDate} onChange={(e) => setContext({ ...context, shiftDate: e.target.value })} placeholder="Date of shift" />
+                  <input className="input" value={context.shiftTime} onChange={(e) => setContext({ ...context, shiftTime: e.target.value })} placeholder="Time of shift" />
+                  <input className="input" value={context.location} onChange={(e) => setContext({ ...context, location: e.target.value })} placeholder="Location of support" />
+                  <input className="input" value={context.worker} onChange={(e) => setContext({ ...context, worker: e.target.value })} placeholder="Worker name (you)" />
                   <input className="input" value={context.supportProvided} onChange={(e) => setContext({ ...context, supportProvided: e.target.value })} placeholder="Support provided" />
                   <input className="input" value={context.mood} onChange={(e) => setContext({ ...context, mood: e.target.value })} placeholder="Mood/presentation" />
                   <input className="input" value={context.risks} onChange={(e) => setContext({ ...context, risks: e.target.value })} placeholder="Risks/incidents" />

@@ -374,11 +374,13 @@ ${args.input}`;
       userContent,
       getIssues: (draft) => {
         const generatedType = draft.noteType || args.noteType;
-        const qualityType = args.formattingMode === "handover_only"
-          ? "handover"
-          : args.formattingMode === "incident_summary"
-            ? "incident"
-            : generatedType;
+        const qualityType = args.formattingMode === "soap"
+          ? "soap" // SOAP uses its own S/O/A/P headings — skip the default heading check
+          : args.formattingMode === "handover_only"
+            ? "handover"
+            : args.formattingMode === "incident_summary"
+              ? "incident"
+              : generatedType;
         const issues = qualityIssuesForNote(draft.noteText ?? "", args.input, qualityType);
         if (!draft.reviewReminder?.toLowerCase().includes("draft")) {
           issues.push("Include the draft-only human review reminder.");

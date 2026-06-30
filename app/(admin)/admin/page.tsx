@@ -35,15 +35,46 @@ export default async function AdminOverviewPage() {
     adminSb.from("progress_notes").select("*", { count: "exact", head: true }).gte("created_at", monthStart),
   ]);
 
+  const sixMoAgo = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 5, 1)).toISOString();
   const [
     { count: totalParticipants },
     { count: participantFriendlyCount },
     { count: incidentsThisMonth },
+    { data: orgDates },
+    { data: soloDates },
+    { data: providerDates },
   ] = await Promise.all([
     adminSb.from("participants").select("*", { count: "exact", head: true }).eq("status", "active"),
     adminSb.from("solo_notes").select("*", { count: "exact", head: true }).not("participant_text", "is", null),
     adminSb.from("progress_notes").select("*", { count: "exact", head: true }).eq("incident_flagged", true).gte("created_at", monthStart),
+    adminSb.from("organisations").select("created_at"),
+    adminSb.from("solo_notes").select("created_at").gte("created_at", sixMoAgo).limit(50000),
+    adminSb.from("progress_notes").select("created_at").gte("created_at", sixMoAgo).limit(50000),
   ]);
+
+  // Monthly buckets (last 6 months) for signups + notes created
+  const monthKeys: string[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+    monthKeys.push(d.toLocaleString("en-AU", { month: "short", year: "2-digit" }));
+  }
+  const bucket = (rows: Array<{ created_at: string }> | null) => {
+    const m: Record<string, number> = Object.fromEntries(monthKeys.map((k) => [k, 0]));
+    for (const r of rows ?? []) {
+      const k = new Date(r.created_at).toLocaleString("en-AU", { month: "short", year: "2-digit" });
+      if (k in m) m[k] += 1;
+    }
+    return monthKeys.map((k) => ({ label: k, value: m[k] }));
+  };
+  const signupSeries = bucket(orgDates);
+  const noteSeries = (() => {
+    const m: Record<string, number> = Object.fromEntries(monthKeys.map((k) => [k, 0]));
+    for (const r of [...(soloDates ?? []), ...(providerDates ?? [])]) {
+      const k = new Date(r.created_at).toLocaleString("en-AU", { month: "short", year: "2-digit" });
+      if (k in m) m[k] += 1;
+    }
+    return monthKeys.map((k) => ({ label: k, value: m[k] }));
+  })();
 
   // MRR/ARR: only genuine payers (paid tier + active status + a live Stripe
   // subscription). Super-admin and comped/admin_override accounts are excluded.
@@ -244,6 +275,17 @@ export default async function AdminOverviewPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h3 className="font-semibold text-white text-sm flex items-center gap-2 mb-5"><TrendingUp className="w-4 h-4 text-teal-300" /> Signups (last 6 months)</h3>
+          <MonthlyBars series={signupSeries} />
+        </div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h3 className="font-semibold text-white text-sm flex items-center gap-2 mb-5"><BarChart3 className="w-4 h-4 text-cyan-300" /> Notes created (last 6 months)</h3>
+          <MonthlyBars series={noteSeries} />
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "0-note Solo users", value: usersWithZeroNotes, hint: "Activation gap", color: "text-amber-300" },
@@ -422,6 +464,21 @@ function BarList({ items, emptyLabel }: { items: Array<{ label: string; value: n
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function MonthlyBars({ series }: { series: Array<{ label: string; value: number }> }) {
+  const max = Math.max(...series.map((s) => s.value), 1);
+  return (
+    <div className="flex items-end gap-3 h-40">
+      {series.map((s) => (
+        <div key={s.label} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
+          <span className="text-xs font-bold text-slate-300">{s.value > 0 ? s.value : ""}</span>
+          <div className="w-full rounded-t-lg bg-gradient-to-t from-teal-500 to-cyan-400 transition-all" style={{ height: `${Math.max((s.value / max) * 120, s.value > 0 ? 8 : 4)}px` }} />
+          <span className="text-[10px] text-slate-500">{s.label}</span>
+        </div>
+      ))}
     </div>
   );
 }
