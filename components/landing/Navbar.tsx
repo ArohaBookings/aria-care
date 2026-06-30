@@ -20,18 +20,18 @@ export default function Navbar() {
           <div className="w-8 h-8 bg-aria-gradient rounded-lg flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
-          <span className="font-display text-xl font-bold text-slate-900">Aria</span>
+          <span className="font-display text-xl font-bold text-slate-900">Aria Care</span>
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
-          {[["Features", "#features"], ["How It Works", "#how-it-works"], ["Pricing", "#pricing"]].map(([label, href]) => (
-            <a key={label} href={href} className="text-sm text-slate-600 hover:text-slate-900 transition-colors font-medium">{label}</a>
+          {[["Progress Notes", "/progress-notes"], ["ROI", "/#roi"], ["Pricing", "/#pricing"], ["About", "/about"], ["Support", "/support"]].map(([label, href]) => (
+            <Link key={label} href={href} className="text-sm text-slate-600 hover:text-slate-900 transition-colors font-medium">{label}</Link>
           ))}
         </div>
 
         <div className="hidden md:flex items-center gap-3">
           <Link href="/login" className="text-sm font-medium text-slate-600 hover:text-slate-900 px-4 py-2 transition-colors">Sign in</Link>
-          <Link href="/signup" className="btn-primary text-sm px-5 py-2">Start free trial</Link>
+          <Link href="/signup?plan=solo_free" className="btn-primary text-sm px-5 py-2">Start Free Solo</Link>
         </div>
 
         <button className="md:hidden text-slate-600" onClick={() => setOpen(!open)}>
@@ -41,12 +41,12 @@ export default function Navbar() {
 
       {open && (
         <div className="md:hidden bg-white border-t border-slate-100 px-6 py-4 space-y-3">
-          {[["Features", "#features"], ["How It Works", "#how-it-works"], ["Pricing", "#pricing"]].map(([label, href]) => (
-            <a key={label} href={href} className="block text-sm text-slate-600 py-2" onClick={() => setOpen(false)}>{label}</a>
+          {[["Progress Notes", "/progress-notes"], ["ROI", "/#roi"], ["Pricing", "/#pricing"], ["About", "/about"], ["Support", "/support"]].map(([label, href]) => (
+            <Link key={label} href={href} className="block text-sm text-slate-600 py-2" onClick={() => setOpen(false)}>{label}</Link>
           ))}
           <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
             <Link href="/login" className="text-sm text-center text-slate-600 py-2">Sign in</Link>
-            <Link href="/signup" className="btn-primary justify-center">Start free trial</Link>
+            <Link href="/signup?plan=solo_free" className="btn-primary justify-center">Start Free Solo</Link>
           </div>
         </div>
       )}

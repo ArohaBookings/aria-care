@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
 
 const PARTICIPANT_LIMITS: Record<string, number> = {
-  starter: 10, growth: 30, business: 75,
+  starter: 10, growth: 30, business: 75, solo: 0, solo_pro: 0, solo_free: 0,
 };
 
 export async function POST(request: NextRequest) {
@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const orgId = session.metadata?.organisation_id;
     const plan = session.metadata?.plan ?? "starter";
+    const productMode = session.metadata?.product_mode ?? (plan.startsWith("solo") ? "solo" : "provider");
 
     if (!orgId) return NextResponse.json({ error: "No organisation metadata" }, { status: 400 });
 
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
       .update({
         subscription_status: status,
         subscription_tier: plan,
+        product_mode: productMode,
         stripe_subscription_id: subId ?? null,
         participant_limit: PARTICIPANT_LIMITS[plan] ?? 10,
         ...(trialEndsAt ? { trial_ends_at: trialEndsAt } : {}),

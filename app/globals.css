@@ -120,6 +120,49 @@
   .animate-fade-up-3 { animation: fadeUp 0.5s ease-out 0.3s both; }
   .animate-fade-up-4 { animation: fadeUp 0.5s ease-out 0.4s both; }
   .animate-fade-up-5 { animation: fadeUp 0.5s ease-out 0.5s both; }
+  .animate-soft-float { animation: softFloat 7s ease-in-out infinite; }
+  .animation-delay-200 { animation-delay: 200ms; }
+  .chart-bar-pop {
+    transform-origin: left center;
+    animation: chartBarPop 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .animate-sheen::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    inset: -60% auto -60% -35%;
+    width: 35%;
+    transform: rotate(18deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+    animation: sheenSweep 3.8s ease-in-out infinite;
+  }
+}
+
+@keyframes softFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.72; }
+  50% { transform: translate3d(12px, -14px, 0) scale(1.04); opacity: 1; }
+}
+
+@keyframes chartBarPop {
+  0% { transform: scaleX(0); opacity: 0.55; }
+  100% { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes sheenSweep {
+  0%, 55% { left: -45%; }
+  100% { left: 125%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-soft-float,
+  .chart-bar-pop,
+  .animate-sheen::after {
+    animation: none;
+  }
 }
 
 /* Recording pulse animation */

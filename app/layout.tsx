@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, JetBrains_Mono, Nunito_Sans } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
+import StructuredData from "@/components/seo/StructuredData";
 
 const displayFont = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -22,15 +23,47 @@ const monoFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aria — AI Operating System for NDIS Providers",
-  description: "Turn 45-minute progress notes into 90-second voice memos. NDIS-compliant documentation, compliance tracking, and intelligent billing.",
+  metadataBase: new URL("https://www.ariacare.app"),
+  title: {
+    default: "Aria Care — AI Progress Notes for Support Workers and Providers",
+    template: "%s | Aria Care",
+  },
+  description: "Turn voice notes and bullet points into structured, review-ready support note drafts workers can copy into ShiftCare, Lumary, Brevity or provider systems.",
   icons: { icon: "/favicon.svg" },
+  keywords: [
+    "AI progress notes",
+    "support worker notes",
+    "NDIS progress notes",
+    "ShiftCare progress notes",
+    "disability support documentation",
+    "copy-ready progress notes",
+    "incident note draft",
+    "handover notes",
+  ],
+  alternates: { canonical: "/" },
   openGraph: {
-    title: "Aria — AI for NDIS Providers",
-    description: "Voice-to-note in 90 seconds. NDIS compliant. Built for Australia.",
-    url: "https://aria.care",
-    siteName: "Aria",
+    title: "Aria Care — AI Progress Notes for Support Workers and Providers",
+    description: "Voice and bullet points to copy-ready support note drafts. Built in New Zealand for support workers and providers across Australia & NZ.",
+    url: "https://www.ariacare.app",
+    siteName: "Aria Care",
     type: "website",
+    locale: "en_AU",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Aria Care — AI Progress Notes for Support Workers and Providers",
+    description: "Create review-ready support notes, then copy into ShiftCare, Lumary, Brevity or your workplace platform.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
 };
 
@@ -39,6 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <StructuredData />
       </head>
       <body className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable}`}>
         <ToastProvider>{children}</ToastProvider>

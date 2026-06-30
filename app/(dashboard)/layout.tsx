@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { isFallbackAdminEmail } from "@/lib/admin-emails";
@@ -16,9 +17,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: profile } = await supabase
     .from("users")
-    .select("full_name, role, organisation_id, organisations(name, subscription_tier, subscription_status, trial_ends_at, stripe_subscription_id)")
+    .select("full_name, role, account_type, organisation_id, force_password_change, organisations(name, subscription_tier, subscription_status, trial_ends_at, stripe_subscription_id, product_mode)")
     .eq("id", user.id)
     .single();
+
+  if (profile?.force_password_change) {
+    redirect("/force-password-change?redirect=/dashboard");
+  }
 
   const org = profile?.organisations as unknown as {
     name: string;
@@ -26,15 +31,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
     subscription_status: string;
     trial_ends_at: string;
     stripe_subscription_id: string;
+    product_mode: string;
   } | null;
+  const isSolo = profile?.account_type === "solo" || org?.product_mode === "solo" || org?.subscription_tier?.startsWith("solo");
   const trialDaysLeft = org?.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(org.trial_ends_at).getTime() - Date.now()) / 86400000))
     : 0;
 
   // ── Subscription / trial gate ──────────────────────────────────────────────
   const headersList = await headers();
+  const cookieStore = await cookies();
   const currentPath = headersList.get("x-invoke-path") ?? "";
   const isBypass = GATE_BYPASS.some((p) => currentPath.startsWith(p));
+  const adminCustomerView = cookieStore.get("aria_admin_customer_view")?.value === "1";
 
   let isAdminUser = isFallbackAdminEmail(user.email ?? "");
 
@@ -49,22 +58,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
     isAdminUser = !!adminRecord;
   }
 
-  if (isAdminUser) {
+  if (isAdminUser && !adminCustomerView) {
     redirect("/admin");
   }
 
-  if (!isBypass && org) {
+  if (!adminCustomerView && !isBypass && org) {
     const hasRealOrgName = org.name && org.name !== "My Organisation";
     const hasStripeSub = !!org.stripe_subscription_id;
 
     // Gate 1: org exists with real name but no Stripe subscription → onboarding
-    if (hasRealOrgName && !hasStripeSub) {
+    if (!isSolo && hasRealOrgName && !hasStripeSub) {
       redirect("/onboarding");
     }
 
     // Gate 2: legacy trial expired
     const isTrial = org.subscription_tier === "trial";
-    const trialExpired = isTrial && org.trial_ends_at && new Date(org.trial_ends_at) < new Date();
+    const trialExpired = !isSolo && isTrial && org.trial_ends_at && new Date(org.trial_ends_at) < new Date();
     if (trialExpired) redirect("/billing?expired=true");
 
     // Gate 3: Stripe subscription unpayable
@@ -102,10 +111,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         userRole={profile?.role ?? "support_worker"}
         orgName={org?.name ?? ""}
         subscriptionTier={org?.subscription_tier ?? "trial"}
+        productMode={isSolo ? "solo" : "provider"}
       />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Trial warning banner */}
-        {org?.subscription_tier === "trial" && trialDaysLeft <= 7 && (
+        {!isSolo && org?.subscription_tier === "trial" && trialDaysLeft <= 7 && (
           <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex items-center justify-between flex-shrink-0">
             <p className="text-xs text-amber-800 font-medium">
               ⏳ {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left in your free trial
@@ -119,7 +129,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <p className="text-xs font-medium"><span className="font-bold">{ann.title}: </span>{ann.message}</p>
           </div>
         ))}
-        <TopBar userName={profile?.full_name ?? ""} orgName={org?.name ?? ""} />
+        {isAdminUser && adminCustomerView && (
+          <div className="border-b border-red-200 bg-red-50 px-6 py-2 flex items-center justify-between gap-3 flex-shrink-0">
+            <p className="text-xs font-semibold text-red-800">Super admin customer view is active. You are seeing the normal app experience.</p>
+            <a href="/admin" className="text-xs font-bold text-red-800 underline whitespace-nowrap">Back to Super Admin</a>
+          </div>
+        )}
+        <TopBar userName={profile?.full_name ?? ""} orgName={org?.name ?? ""} productMode={isSolo ? "solo" : "provider"} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>

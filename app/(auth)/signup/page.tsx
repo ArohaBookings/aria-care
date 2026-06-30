@@ -6,6 +6,9 @@ import { Sparkles, ArrowLeft, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const PLAN_LABELS: Record<string, string> = {
+  solo_free: "Free Solo — 3 notes/month (no card)",
+  solo: "Aria Care Solo — AU$19/mo or NZ$21/mo (14 days free)",
+  solo_pro: "Aria Care Solo Pro — AU$29/mo or NZ$32/mo (14 days free)",
   starter: "Starter — $149/mo (14 days free)",
   growth: "Growth — $349/mo (14 days free)",
   business: "Business — $699/mo (14 days free)",
@@ -23,6 +26,7 @@ function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan") || "starter";
+  const isSoloIntent = plan.startsWith("solo");
   const supabase = createClient();
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -38,7 +42,7 @@ function SignupContent() {
           email,
           password,
           full_name: name,
-          organisation_name: org,
+          organisation_name: org || (isSoloIntent ? "Solo Workspace" : "My Organisation"),
           plan,
         }),
       });
@@ -80,8 +84,10 @@ function SignupContent() {
             </div>
             <span className="font-display text-xl font-bold text-slate-900">Aria</span>
           </div>
-          <h1 className="font-display text-2xl font-bold text-slate-900 mb-1">Start your free trial</h1>
-          <p className="text-sm text-slate-500 mb-4">14 days free · Card required to activate your workspace</p>
+          <h1 className="font-display text-2xl font-bold text-slate-900 mb-1">{isSoloIntent ? "Create your Solo account" : "Start your free trial"}</h1>
+          <p className="text-sm text-slate-500 mb-4">
+            {isSoloIntent ? "Free Solo needs no card. Paid Solo trials collect card details in Stripe." : "14 days free · Card required to activate your workspace"}
+          </p>
 
           {PLAN_LABELS[plan] && (
             <div className="flex items-center gap-2 bg-aria-50 border border-aria-100 rounded-xl px-3 py-2 mb-5">
@@ -102,7 +108,7 @@ function SignupContent() {
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div><label className="label">Your name</label><input value={name} onChange={e => setName(e.target.value)} required className="input" placeholder="Jane Smith" /></div>
-              <div><label className="label">Organisation</label><input value={org} onChange={e => setOrg(e.target.value)} required className="input" placeholder="Care Co." /></div>
+              <div><label className="label">Workplace / organisation</label><input value={org} onChange={e => setOrg(e.target.value)} required={!isSoloIntent} className="input" placeholder={isSoloIntent ? "Optional" : "Care Co."} /></div>
             </div>
             <div><label className="label">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input" placeholder="jane@careorg.com.au" /></div>
             <div><label className="label">Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} className="input" placeholder="Min. 8 characters" /></div>
@@ -110,7 +116,7 @@ function SignupContent() {
             <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create account"}
             </button>
-            <p className="text-xs text-slate-400 text-center">You&apos;ll finish a short setup checklist, then activate your 14-day trial through Stripe. By signing up you agree to our <Link href="/terms" className="text-aria-600">Terms</Link> and <Link href="/privacy" className="text-aria-600">Privacy Policy</Link></p>
+            <p className="text-xs text-slate-400 text-center">You&apos;ll finish a short setup checklist, then choose Free Solo or activate a card-secured 14-day trial. By signing up you agree to our <Link href="/terms" className="text-aria-600">Terms</Link> and <Link href="/privacy" className="text-aria-600">Privacy Policy</Link></p>
           </form>
         </div>
         <p className="text-center text-sm text-slate-500 mt-5">

@@ -1,0 +1,48 @@
+# Aria Care
+
+Aria Care is an AI support documentation platform for individual support workers and disability support providers in Australia and New Zealand.
+
+Primary website: https://www.ariacare.app
+
+## What Aria Care Does
+
+- Turns voice notes and bullet points into structured, review-ready support note drafts.
+- Helps workers create progress notes, handovers, incident drafts, risk concern notes, and support summaries.
+- Lets Solo users review, edit, save, and copy drafts into workplace platforms such as ShiftCare, Lumary, Brevity, CareMaster, or provider systems.
+- Gives provider teams shared dashboards, review workflows, billing/rostering pathways, and admin controls.
+- Includes an About page explaining that Aria Care is built by Leo in New Zealand for support workers and providers across Australia and New Zealand.
+- Adds documentation quality scoring and care-signal highlighting to help reduce missing details.
+- GoalLink Copilot turns participant goals into simple goal cards and connects notes to goals only when the worker's input supports it.
+- Adaptive Shift Debrief Mode asks 2-4 useful follow-up questions instead of forcing long forms.
+- Plan Review Evidence Packs summarise 30/60/90-day note history into review themes such as goals, support examples, risks, presentation changes, and follow-up actions.
+- Universal Platform Bridge can import rough-note photos and creates paste-ready formats for ShiftCare, Lumary, Brevity, CareMaster, email handover, incident summaries, and plain text.
+- Dignity + Risk Guardian helps catch vague, judgemental, risky, or overconfident wording before a note is submitted.
+
+## Important Safety Language
+
+Aria Care creates drafts only. Users should always review and edit documentation before submitting it to a workplace system. For incident or risk notes, users should follow their organisation's incident reporting and escalation process.
+
+Do not describe Aria Care as legally compliant, clinically approved, NDIS approved, or guaranteed compliant.
+
+## Useful Pages
+
+- Homepage: https://www.ariacare.app
+- About: https://www.ariacare.app/about
+- AI progress notes guide: https://www.ariacare.app/progress-notes
+- Blog: https://www.ariacare.app/blog
+- Support-worker AI notes guide: https://www.ariacare.app/blog/ai-progress-notes-support-workers
+- Support: https://www.ariacare.app/support
+- Privacy: https://www.ariacare.app/privacy
+- Terms: https://www.ariacare.app/terms
+
+## Audience
+
+- Individual support workers
+- NDIS and disability support providers
+- SIL teams
+- Coordinators and team leaders
+- Admin and operations teams
+
+## Best Short Description
+
+Aria Care turns messy after-shift voice notes and bullet points into structured, review-ready support note drafts that workers can copy into ShiftCare, Lumary, Brevity, CareMaster, or their provider's existing system.

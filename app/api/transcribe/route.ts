@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Transcription error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Transcription failed. Please try again or use text mode." },
+      { error: "Voice transcription could not finish. Your note is not lost: switch to Type bullet points or retry when the connection is stronger." },
       { status: 500 }
     );
   }

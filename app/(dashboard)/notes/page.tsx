@@ -5,6 +5,17 @@ import { useSearchParams } from "next/navigation";
 import { Mic, Square, Loader2, Check, ChevronDown, ChevronUp, Copy, AlertTriangle, FileText, ArrowRight, RotateCcw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { timeAgo } from "@/lib/utils";
+import SoloNotesExperience from "@/components/solo/SoloNotesExperience";
+import { detectCareSignals, scoreNoteQuality } from "@/lib/notes/quality";
+import {
+  AdaptiveDebriefPanel,
+  DignityRiskGuardian,
+  EvidencePackPanel,
+  GoalLinkPanel,
+  UniversalPlatformBridge,
+  copyTextWithFallback,
+} from "@/components/notes/NoteIntelligencePanels";
+import { buildAdaptiveDebriefQuestions } from "@/lib/notes/intelligence";
 
 type RecordingState = "idle" | "recording" | "processing" | "done" | "error";
 
@@ -36,6 +47,83 @@ type UpgradePrompt = {
   href: string;
   label: string;
 } | null;
+
+const OPTIONAL_DETAILS_CHECKLIST = [
+  "Shift time",
+  "Participant mood on arrival",
+  "Any follow-up for next worker",
+  "Whether family/admin were notified",
+  "Any changes in risk, health, behaviour, or routine",
+];
+
+function makeDraftShorter(text: string) {
+  return text
+    .split(/\n{2,}/)
+    .filter((section) => section.trim())
+    .slice(0, 5)
+    .join("\n\n")
+    .trim();
+}
+
+function addMissingDetailsChecklist(text: string) {
+  if (text.includes("Optional details you may want to add:")) return text;
+  return `${text.trim()}
+
+Optional details you may want to add:
+${OPTIONAL_DETAILS_CHECKLIST.map((item) => `- ${item}`).join("\n")}`;
+}
+
+function makeDraftMoreProfessional(text: string) {
+  return text
+    .replace(/\butilized\b/gi, "used")
+    .replace(/\bproceeded comfortably\b/gi, "continued without concerns noted")
+    .replace(/\bdemonstrated significant improvement\b/gi, "showed progress")
+    .replace(/\bit is recommended\b/gi, "follow up")
+    .replace(/\bnon-compliant\b/gi, "did not engage with the task at that time")
+    .replace(/\brefused\b/gi, "declined")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function makeDraftShiftCareReady(text: string) {
+  return text
+    .replace(/\*\*/g, "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function QualityPanel({ text }: { text: string }) {
+  const quality = scoreNoteQuality(text, "progress");
+  const signals = detectCareSignals(text);
+  const scoreColor = quality.score >= 90 ? "text-emerald-600" : quality.score >= 75 ? "text-aria-600" : quality.score >= 55 ? "text-amber-600" : "text-red-600";
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/80 p-3 mb-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Documentation quality score</p>
+          <p className="text-xs text-slate-600 mt-1">{quality.label} · review before filing</p>
+        </div>
+        <p className={`font-display text-3xl font-bold ${scoreColor}`}>{quality.score}</p>
+      </div>
+      <div className="mt-3 h-2 rounded-full bg-slate-100 overflow-hidden">
+        <div className="h-full rounded-full bg-aria-gradient transition-all duration-500" style={{ width: `${quality.score}%` }} />
+      </div>
+      {signals.length > 0 && (
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {signals.slice(0, 4).map((signal) => (
+            <div key={signal.label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+              <p className={`text-xs font-bold ${signal.level === "risk" ? "text-red-600" : signal.level === "watch" ? "text-amber-700" : "text-aria-700"}`}>{signal.label}</p>
+              <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">{signal.detail}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function getSupportedAudioMimeType() {
   if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return "";
@@ -69,13 +157,27 @@ async function fetchNotesAndRole() {
   const { data: { user } } = await supabase.auth.getUser();
 
   let role = "support_worker";
+  let accountMode: "provider" | "solo" = "provider";
   if (user) {
     const { data: profile } = await supabase
       .from("users")
-      .select("role")
+      .select("role, account_type, organisations(subscription_tier, product_mode)")
       .eq("id", user.id)
       .single();
     role = profile?.role ?? "support_worker";
+
+    const org = profile?.organisations as { subscription_tier?: string; product_mode?: string } | null;
+    if (profile?.account_type === "solo" || org?.product_mode === "solo" || org?.subscription_tier?.startsWith("solo")) {
+      accountMode = "solo";
+    }
+  }
+
+  if (accountMode === "solo") {
+    return {
+      role,
+      accountMode,
+      notes: [],
+    };
   }
 
   const { data } = await supabase
@@ -86,6 +188,7 @@ async function fetchNotesAndRole() {
 
   return {
     role,
+    accountMode,
     notes: (data as unknown as SavedNote[]) ?? [],
   };
 }
@@ -108,22 +211,38 @@ export default function NotesPage() {
   const [upgradePrompt, setUpgradePrompt] = useState<UpgradePrompt>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved">("all");
   const [viewerRole, setViewerRole] = useState("support_worker");
+  const [accountMode, setAccountMode] = useState<"loading" | "provider" | "solo">("loading");
+  const [draftActionNotice, setDraftActionNotice] = useState("");
+  const [copiedGenerated, setCopiedGenerated] = useState(false);
+  const [debriefAnswers, setDebriefAnswers] = useState<Record<string, string>>({});
+  const [ocrLoading, setOcrLoading] = useState(false);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const supabase = createClient();
+  const selectedParticipantData = participants.find((participant) => participant.id === selectedParticipant);
+  const debriefInput = inputMode === "voice" ? transcript || textInput : textInput || transcript;
+  const debriefQuestions = buildAdaptiveDebriefQuestions(
+    debriefInput,
+    {
+      goals: selectedParticipantData?.goals?.join("; ") ?? "",
+      debriefAnswers,
+    },
+    "progress"
+  );
 
   useEffect(() => {
     (async () => {
-      const [participantData, noteState] = await Promise.all([
-        fetchParticipants(),
-        fetchNotesAndRole(),
-      ]);
+      const noteState = await fetchNotesAndRole();
 
-      setParticipants(participantData);
       setViewerRole(noteState.role);
+      setAccountMode(noteState.accountMode);
       setNotes(noteState.notes);
+
+      if (noteState.accountMode === "provider") {
+        setParticipants(await fetchParticipants());
+      }
     })();
   }, []);
 
@@ -175,8 +294,9 @@ export default function NotesPage() {
       setState("recording");
       setRecordingTime(0);
       timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
-    } catch {
-      setError("Microphone access denied. Please allow microphone access and try again.");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Microphone access denied. Please allow microphone access and try again.";
+      setError(`${message} You can still use text mode and type bullet points for this note.`);
       setState("error");
     }
   };
@@ -193,7 +313,7 @@ export default function NotesPage() {
   const handleAudioStop = async () => {
     const mimeType = mediaRecorder.current?.mimeType || "audio/webm";
     if (audioChunks.current.length === 0) {
-      setError("No audio was captured. Please check your microphone and try again.");
+      setError("No audio was captured. Check the microphone, move closer, or switch to text mode for a reliable fallback.");
       setState("error");
       return;
     }
@@ -211,7 +331,8 @@ export default function NotesPage() {
       setTranscript(t);
       await generateNote(t);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Transcription failed. Please use text mode.");
+      const message = e instanceof Error ? e.message : "Transcription failed.";
+      setError(`${message} Please use text mode if the microphone or transcription service is unavailable.`);
       setState("error");
     }
   };
@@ -220,13 +341,25 @@ export default function NotesPage() {
     setState("processing");
     setError("");
     setUpgradePrompt(null);
+    setDraftActionNotice("");
+    setCopiedGenerated(false);
     const participant = participants.find(p => p.id === selectedParticipant);
+    const answeredDebrief = Object.entries(debriefAnswers)
+      .filter(([, value]) => value.trim())
+      .map(([key, value]) => `${key}: ${value.trim()}`);
+    const sourceInput = answeredDebrief.length
+      ? `${input.trim()}
+
+Adaptive debrief answers:
+${answeredDebrief.join("\n")}`
+      : input;
+    setTranscript(sourceInput);
     try {
       const res = await fetch("/api/generate-note", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          transcript: input,
+          transcript: sourceInput,
           participantId: selectedParticipant,
           participantName: participant?.full_name ?? "Unknown",
           participantGoals: participant?.goals ?? [],
@@ -260,6 +393,28 @@ export default function NotesPage() {
     if (!textInput.trim()) return;
     setTranscript(textInput);
     await generateNote(textInput);
+  };
+
+  const importPhotoNotes = async (file?: File) => {
+    if (!file) return;
+    setInputMode("text");
+    setState("idle");
+    setError("");
+    setOcrLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/ocr-notes", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Photo import failed");
+      setTextInput((current) => [current.trim(), data.text].filter(Boolean).join("\n\n"));
+      setDraftActionNotice("Imported rough notes from the photo. Review the text before generating.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Photo import failed. Type the key bullet points instead.");
+    } finally {
+      setOcrLoading(false);
+    }
   };
 
   const saveNote = async () => {
@@ -297,8 +452,39 @@ export default function NotesPage() {
       return;
     }
     setSaving(false); setSaved(true);
-    setTimeout(() => { setSaved(false); setState("idle"); setGenerated(null); setTextInput(""); setTranscript(""); }, 2000);
+    setTimeout(() => { setSaved(false); setState("idle"); setGenerated(null); setTextInput(""); setTranscript(""); setDebriefAnswers({}); }, 2000);
     loadNotes();
+  };
+
+  const applyDraftAction = (action: "shorter" | "detail" | "professional" | "shiftcare") => {
+    if (!generated?.noteText) return;
+    const nextText = action === "shorter"
+      ? makeDraftShorter(generated.noteText)
+      : action === "detail"
+        ? addMissingDetailsChecklist(generated.noteText)
+        : action === "professional"
+          ? makeDraftMoreProfessional(generated.noteText)
+          : makeDraftShiftCareReady(generated.noteText);
+
+    setGenerated({ ...generated, noteText: nextText });
+    setCopiedGenerated(false);
+    setDraftActionNotice(action === "shorter"
+      ? "Shortened the draft. Review it before saving."
+      : action === "detail"
+        ? "Added a missing-details checklist without inventing information."
+        : action === "professional"
+          ? "Polished wording to be more factual and support-worker friendly."
+          : "Cleaned spacing and formatting so it is easier to paste into ShiftCare.");
+  };
+
+  const copyGeneratedNote = async () => {
+    if (!generated?.noteText) return;
+    try {
+      await copyTextWithFallback(generated.noteText);
+      setCopiedGenerated(true);
+    } catch {
+      setError("Copy did not complete in this browser. Select the note text manually, then copy it into your workplace platform.");
+    }
   };
 
   const approveNote = async (noteId: string) => {
@@ -323,6 +509,14 @@ export default function NotesPage() {
   });
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
+  if (accountMode === "loading") {
+    return <div className="p-6 flex items-center justify-center h-64"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
+  }
+
+  if (accountMode === "solo") {
+    return <SoloNotesExperience />;
+  }
+
   return (
     <div className="p-6 max-w-6xl">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -341,6 +535,18 @@ export default function NotesPage() {
               </select>
             </div>
 
+            <div className="mb-4">
+              <GoalLinkPanel goals={selectedParticipantData?.goals ?? []} compact />
+            </div>
+
+            <div className="mb-5">
+              <AdaptiveDebriefPanel
+                questions={debriefQuestions}
+                answers={debriefAnswers}
+                onAnswer={(id, value) => setDebriefAnswers((current) => ({ ...current, [id]: value }))}
+              />
+            </div>
+
             {/* Mode toggle */}
             <div className="flex rounded-xl border border-slate-200 p-0.5 mb-5 bg-slate-50">
               {(["voice", "text"] as const).map(m => (
@@ -354,6 +560,7 @@ export default function NotesPage() {
                   <button
                     onClick={startRecording}
                     disabled={!selectedParticipant}
+                    aria-label="Start voice recording"
                     className="w-20 h-20 rounded-full bg-aria-600 hover:bg-aria-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center mx-auto shadow-teal transition-all hover:scale-105 active:scale-95"
                   >
                     <Mic className="w-8 h-8 text-white" />
@@ -361,7 +568,7 @@ export default function NotesPage() {
                 )}
                 {state === "recording" && (
                   <div className="space-y-4">
-                    <button onClick={stopRecording} className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center mx-auto recording-pulse transition-all">
+                    <button onClick={stopRecording} aria-label="Stop voice recording" className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center mx-auto recording-pulse transition-all">
                       <Square className="w-8 h-8 text-white fill-white" />
                     </button>
                     <div className="flex items-end justify-center gap-0.5 h-8">
@@ -388,6 +595,19 @@ export default function NotesPage() {
                   rows={8}
                   className="input resize-none font-body text-sm leading-relaxed"
                 />
+                <label className="btn-secondary w-full justify-center text-xs cursor-pointer">
+                  {ocrLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Reading photo...</> : <><FileText className="w-4 h-4" /> Import photo of rough notes</>}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={ocrLoading}
+                    onChange={(event) => {
+                      void importPhotoNotes(event.target.files?.[0]);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
                 <button
                   onClick={handleTextSubmit}
                   disabled={!textInput.trim() || state === "processing" || !selectedParticipant}
@@ -399,7 +619,19 @@ export default function NotesPage() {
             )}
 
             {error && (
-              <div className="mt-3 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</div>
+              <div className="mt-3 space-y-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                <p>{error}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode("text");
+                    setState("idle");
+                  }}
+                  className="font-bold text-red-700 underline-offset-2 hover:underline"
+                >
+                  Switch to text mode
+                </button>
+              </div>
             )}
 
             {upgradePrompt && (
@@ -418,19 +650,50 @@ export default function NotesPage() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-slate-900 text-sm">Generated Note</h3>
                 <div className="flex gap-2">
-                  <span className="badge-green text-[10px]">NDIS Compliant</span>
+                  <span className="badge-green text-[10px]">Review-ready</span>
                   {generated.incidentFlagged && <span className="badge-red text-[10px]">⚠ Incident</span>}
                 </div>
               </div>
               <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap mb-4">{generated.noteText}</p>
+              <QualityPanel text={generated.noteText} />
+              <div className="mb-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                <GoalLinkPanel goals={selectedParticipantData?.goals ?? []} noteText={generated.noteText} />
+                <DignityRiskGuardian text={generated.noteText} />
+              </div>
+              <div className="mb-4">
+                <UniversalPlatformBridge
+                  text={generated.noteText}
+                  noteType="progress"
+                  onCopied={() => setCopiedGenerated(true)}
+                />
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white/80 p-3 mb-4">
+                <p className="text-xs font-bold text-slate-600 mb-2">Quick polish actions</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button onClick={() => applyDraftAction("shorter")} className="btn-secondary justify-center text-xs">Make shorter</button>
+                  <button onClick={() => applyDraftAction("detail")} className="btn-secondary justify-center text-xs">More detail</button>
+                  <button onClick={() => applyDraftAction("professional")} className="btn-secondary justify-center text-xs">Make more professional</button>
+                  <button onClick={() => applyDraftAction("shiftcare")} className="btn-secondary justify-center text-xs">Make easier to paste into ShiftCare</button>
+                </div>
+                {draftActionNotice && <p className="mt-2 text-xs font-medium text-slate-600">{draftActionNotice}</p>}
+              </div>
               <div className="grid grid-cols-2 gap-2 mb-4 text-xs">
                 <div><span className="text-slate-500">Support level: </span><span className="font-medium capitalize">{generated.supportLevel}</span></div>
                 <div><span className="text-slate-500">Mood: </span><span className="font-medium capitalize">{generated.mood}</span></div>
               </div>
+              <p className="text-xs text-slate-500 mb-3">Draft only — please review and edit before submitting to your workplace system.</p>
+              {copiedGenerated && (
+                <div className="mb-3 rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800">
+                  Copied — paste this into your workplace platform.
+                </div>
+              )}
+              <button onClick={copyGeneratedNote} className="btn-secondary w-full justify-center mb-2">
+                <Copy className="w-4 h-4" /> Copy note
+              </button>
               <button onClick={saveNote} disabled={saving || saved} className="btn-primary w-full justify-center">
                 {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : saved ? <><Check className="w-4 h-4" /> Saved!</> : "Save & File Note"}
               </button>
-              <button onClick={() => { setGenerated(null); setState("idle"); setTranscript(""); }} className="btn-secondary w-full justify-center mt-2">
+              <button onClick={() => { setGenerated(null); setState("idle"); setTranscript(""); setDebriefAnswers({}); }} className="btn-secondary w-full justify-center mt-2">
                 <RotateCcw className="w-4 h-4" /> Start another draft
               </button>
             </div>
@@ -439,6 +702,10 @@ export default function NotesPage() {
 
         {/* Notes list */}
         <div className="lg:col-span-3">
+          <div className="mb-4">
+            <EvidencePackPanel notes={notes} />
+          </div>
+
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-bold text-slate-900">Note History</h3>
             <div className="flex gap-1 bg-slate-100 rounded-xl p-0.5">
@@ -479,7 +746,16 @@ export default function NotesPage() {
                           <Check className="w-3.5 h-3.5" /> Approve
                         </button>
                       )}
-                      <button onClick={() => navigator.clipboard.writeText(note.note_text)} className="btn-secondary text-xs py-1.5 px-4">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await copyTextWithFallback(note.note_text);
+                          } catch {
+                            setError("Copy did not complete in this browser. Select the note text manually, then copy it.");
+                          }
+                        }}
+                        className="btn-secondary text-xs py-1.5 px-4"
+                      >
                         <Copy className="w-3.5 h-3.5" /> Copy
                       </button>
                     </div>

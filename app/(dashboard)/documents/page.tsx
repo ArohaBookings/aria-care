@@ -25,7 +25,7 @@ export default async function DocumentsPage() {
       <div className="mb-6">
         <h1 className="font-display text-3xl font-bold text-slate-900">Documents</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Generate NDIS-compliant documents in seconds — support plans, incident reports, handover notes and emails.
+          Generate structured drafts in seconds — support plans, incident reports, handover notes and emails. Always review before filing.
         </p>
       </div>
       <DocumentsBuilder participants={participants ?? []} />

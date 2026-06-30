@@ -7,7 +7,7 @@ type DocType = "support_plan" | "incident_report" | "handover_note" | "email";
 type Participant = { id: string; full_name: string };
 
 const TABS: { value: DocType; label: string; icon: typeof FileText; description: string }[] = [
-  { value: "support_plan", label: "Support Plan", icon: FileText, description: "NDIS-compliant participant support plan" },
+  { value: "support_plan", label: "Support Plan", icon: FileText, description: "Structured participant support plan draft" },
   { value: "incident_report", label: "Incident Report", icon: AlertTriangle, description: "Structured incident report with severity" },
   { value: "handover_note", label: "Handover Note", icon: ClipboardList, description: "Shift handover from notes" },
   { value: "email", label: "Email Draft", icon: Mail, description: "Professional email from a brief" },

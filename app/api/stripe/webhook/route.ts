@@ -14,7 +14,7 @@ const admin = createClient(
 );
 
 const PARTICIPANT_LIMITS: Record<string, number> = {
-  starter: 10, growth: 30, business: 75,
+  starter: 10, growth: 30, business: 75, solo: 0, solo_pro: 0, solo_free: 0,
 };
 
 // Price → plan map is built inside the handler (not at module load time) so
@@ -25,10 +25,22 @@ function buildPlanFromPrice(): Record<string, string> {
   const starter = process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID;
   const growth = process.env.NEXT_PUBLIC_STRIPE_GROWTH_PRICE_ID;
   const business = process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID;
+  const soloAud = process.env.NEXT_PUBLIC_STRIPE_SOLO_AUD_PRICE_ID || process.env.STRIPE_SOLO_AUD_PRICE_ID;
+  const soloNzd = process.env.NEXT_PUBLIC_STRIPE_SOLO_NZD_PRICE_ID || process.env.STRIPE_SOLO_NZD_PRICE_ID;
+  const soloProAud = process.env.NEXT_PUBLIC_STRIPE_SOLO_PRO_AUD_PRICE_ID || process.env.STRIPE_SOLO_PRO_AUD_PRICE_ID;
+  const soloProNzd = process.env.NEXT_PUBLIC_STRIPE_SOLO_PRO_NZD_PRICE_ID || process.env.STRIPE_SOLO_PRO_NZD_PRICE_ID;
   if (starter) map[starter] = "starter";
   if (growth) map[growth] = "growth";
   if (business) map[business] = "business";
+  if (soloAud) map[soloAud] = "solo";
+  if (soloNzd) map[soloNzd] = "solo";
+  if (soloProAud) map[soloProAud] = "solo_pro";
+  if (soloProNzd) map[soloProNzd] = "solo_pro";
   return map;
+}
+
+function fallbackPlanForMode(productMode?: string | null) {
+  return productMode === "solo" ? "solo_free" : "trial";
 }
 
 async function updateOrg(organisationId: string, updates: Record<string, unknown>) {
@@ -63,6 +75,7 @@ export async function POST(request: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session;
         const orgId = session.metadata?.organisation_id;
         const plan = session.metadata?.plan ?? "starter";
+        const productMode = session.metadata?.product_mode ?? (plan.startsWith("solo") ? "solo" : "provider");
         if (!orgId) {
           console.warn(`[webhook] checkout.session.completed missing organisation_id event=${event.id}`);
           break;
@@ -82,6 +95,7 @@ export async function POST(request: NextRequest) {
           subscription_status: status,
           // Give feature access during trial too — plan is already chosen.
           subscription_tier: plan,
+          product_mode: productMode,
           stripe_subscription_id: subId ?? null,
           participant_limit: PARTICIPANT_LIMITS[plan] ?? 10,
           ...(trialEndsAt ? { trial_ends_at: trialEndsAt } : {}),
@@ -94,20 +108,22 @@ export async function POST(request: NextRequest) {
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const orgId = sub.metadata?.organisation_id;
+        const productMode = sub.metadata?.product_mode ?? (sub.metadata?.plan?.startsWith("solo") ? "solo" : "provider");
         if (!orgId) {
           console.warn(`[webhook] ${event.type} missing organisation_id sub=${sub.id}`);
           break;
         }
         const priceId = sub.items.data[0]?.price?.id ?? "";
         const planFromPrice = buildPlanFromPrice();
-        const plan = planFromPrice[priceId] ?? "starter";
+        const plan = planFromPrice[priceId] ?? sub.metadata?.plan ?? fallbackPlanForMode(productMode);
         const trialEndsAt = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
         const activeLike = sub.status === "active" || sub.status === "trialing";
         await updateOrg(orgId, {
           subscription_status: sub.status,
-          subscription_tier: activeLike ? plan : "trial",
+          subscription_tier: activeLike ? plan : fallbackPlanForMode(productMode),
+          product_mode: productMode,
           stripe_subscription_id: sub.id,
-          participant_limit: activeLike ? (PARTICIPANT_LIMITS[plan] ?? 10) : 10,
+          participant_limit: activeLike ? (PARTICIPANT_LIMITS[plan] ?? 10) : (productMode === "solo" ? 0 : 10),
           ...(trialEndsAt ? { trial_ends_at: trialEndsAt } : {}),
         });
         break;
@@ -124,14 +140,16 @@ export async function POST(request: NextRequest) {
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const orgId = sub.metadata?.organisation_id;
+        const productMode = sub.metadata?.product_mode ?? (sub.metadata?.plan?.startsWith("solo") ? "solo" : "provider");
         if (!orgId) {
           console.warn(`[webhook] customer.subscription.deleted missing organisation_id sub=${sub.id}`);
           break;
         }
         await updateOrg(orgId, {
           subscription_status: "cancelled",
-          subscription_tier: "trial",
-          participant_limit: 10,
+          subscription_tier: fallbackPlanForMode(productMode),
+          product_mode: productMode,
+          participant_limit: productMode === "solo" ? 0 : 10,
           stripe_subscription_id: null,
         });
         console.log(`✓ Subscription cancelled: org=${orgId}`);

@@ -1,12 +1,20 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/supabase/admin";
+import { createAdminSupabase, requireAdmin } from "@/lib/supabase/admin";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?redirect=/admin");
+
+  const adminSb = createAdminSupabase();
+  const { data: profile } = await adminSb
+    .from("users")
+    .select("force_password_change")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.force_password_change) redirect("/force-password-change?redirect=/admin");
 
   let adminUser;
   try {

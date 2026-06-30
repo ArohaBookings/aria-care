@@ -69,7 +69,7 @@ function AuthCompleteContent() {
 
             const { data: profile } = await supabase
               .from("users")
-              .select("organisation_id, organisations(name)")
+              .select("organisation_id, force_password_change, organisations(name)")
               .eq("id", user.id)
               .single();
 
@@ -77,6 +77,11 @@ function AuthCompleteContent() {
             const orgName = Array.isArray(orgRel) ? orgRel[0]?.name : orgRel?.name;
             const needsOnboarding = !profile?.organisation_id || !orgName || orgName === "My Organisation";
             const preferredDestination = getPostLoginRedirect(user.email, searchParams.get("redirect"));
+            if (profile?.force_password_change) {
+              router.replace(`/force-password-change?redirect=${encodeURIComponent(preferredDestination)}`);
+              return;
+            }
+
             const destination = preferredDestination === "/admin"
               ? preferredDestination
               : needsOnboarding

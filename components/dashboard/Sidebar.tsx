@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, FileText, Shield, DollarSign,
   Calendar, Settings, LogOut, Sparkles, ChevronRight,
-  Mic, Menu, X,
+  Mic, Menu, X, LifeBuoy,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getInitials } from "@/lib/utils";
@@ -18,7 +18,16 @@ const NAV = [
   { href: "/rostering", icon: Calendar, label: "Rostering" },
   { href: "/compliance", icon: Shield, label: "Compliance" },
   { href: "/billing", icon: DollarSign, label: "Billing" },
+  { href: "/support", icon: LifeBuoy, label: "Support" },
   { href: "/staff", icon: Users, label: "Staff" },
+  { href: "/settings", icon: Settings, label: "Settings" },
+];
+
+const SOLO_NAV = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "Solo Dashboard" },
+  { href: "/notes", icon: Mic, label: "Create Note", highlight: true },
+  { href: "/billing", icon: DollarSign, label: "Upgrade" },
+  { href: "/support", icon: LifeBuoy, label: "Support" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
@@ -28,9 +37,10 @@ interface SidebarProps {
   userRole: string;
   orgName: string;
   subscriptionTier: string;
+  productMode?: "provider" | "solo";
 }
 
-export default function Sidebar({ userEmail, userName, userRole, orgName, subscriptionTier }: SidebarProps) {
+export default function Sidebar({ userEmail, userName, userRole, orgName, subscriptionTier, productMode = "provider" }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -43,7 +53,9 @@ export default function Sidebar({ userEmail, userName, userRole, orgName, subscr
   };
 
   const initials = getInitials(userName || userEmail);
-  const isPro = ["growth", "business"].includes(subscriptionTier);
+  const isSolo = productMode === "solo" || subscriptionTier.startsWith("solo");
+  const isPro = isSolo ? ["solo", "solo_pro"].includes(subscriptionTier) : ["growth", "business"].includes(subscriptionTier);
+  const navItems = isSolo ? SOLO_NAV : NAV;
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -54,14 +66,14 @@ export default function Sidebar({ userEmail, userName, userRole, orgName, subscr
         </div>
         <div>
           <span className="font-display text-lg font-bold text-slate-900 leading-none block">Aria</span>
-          <span className="text-[10px] text-slate-400 leading-none">{orgName}</span>
+          <span className="text-[10px] text-slate-400 leading-none">{isSolo ? "Solo workspace" : orgName}</span>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         <p className="section-title px-3 mb-3 pt-1">Menu</p>
-        {NAV.map(({ href, icon: Icon, label, highlight }) => {
+        {navItems.map(({ href, icon: Icon, label, highlight }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link
@@ -91,8 +103,10 @@ export default function Sidebar({ userEmail, userName, userRole, orgName, subscr
       {!isPro && (
         <div className="px-3 pb-3">
           <Link href="/billing" className="block bg-gradient-to-br from-aria-50 to-sky-50 border border-aria-100 rounded-xl p-4 hover:border-aria-200 transition-all">
-            <p className="text-xs font-bold text-aria-700 mb-1">Upgrade to Growth</p>
-            <p className="text-[11px] text-slate-500 leading-relaxed">Unlock billing assistant, rostering & participant portal</p>
+            <p className="text-xs font-bold text-aria-700 mb-1">{isSolo ? "Upgrade Solo" : "Upgrade to Growth"}</p>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              {isSolo ? "Unlock 125 notes/month, all note types and saved drafts" : "Unlock billing assistant, rostering & participant portal"}
+            </p>
           </Link>
         </div>
       )}
@@ -105,7 +119,7 @@ export default function Sidebar({ userEmail, userName, userRole, orgName, subscr
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-slate-800 truncate">{userName || userEmail}</p>
-            <p className="text-[10px] text-slate-400 capitalize">{userRole.replace("_", " ")}</p>
+            <p className="text-[10px] text-slate-400 capitalize">{isSolo ? "Solo support worker" : userRole.replace("_", " ")}</p>
           </div>
           <button onClick={handleLogout} title="Sign out" className="text-slate-400 hover:text-slate-700 transition-colors p-1">
             <LogOut className="w-3.5 h-3.5" />

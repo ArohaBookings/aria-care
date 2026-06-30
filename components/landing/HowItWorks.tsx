@@ -1,9 +1,9 @@
 import { Mic, Cpu, CheckCircle, TrendingUp } from "lucide-react";
 
 const STEPS = [
-  { icon: Mic, num: "01", title: "Worker finishes shift", desc: "They open Aria on their phone and record a 60-second voice memo describing what happened during the shift. That's it. No typing.", detail: "iOS & Android — works offline" },
-  { icon: Cpu, num: "02", title: "Aria writes the note", desc: "AI transcribes the audio, extracts key clinical observations, formats it to NDIS standards, and fills in participant name, date, and goal references automatically.", detail: "~8 seconds average" },
-  { icon: CheckCircle, num: "03", title: "Coordinator approves", desc: "The note appears in the coordinator's queue. One tap to approve and file, or suggest edits. The note is then locked, timestamped, and audit-ready.", detail: "Full audit trail kept" },
+  { icon: Mic, num: "01", title: "Worker finishes shift", desc: "They open Aria on their phone and record a short voice memo or type rough bullet points describing what happened during the shift.", detail: "Mobile browser friendly" },
+  { icon: Cpu, num: "02", title: "Aria writes the draft", desc: "AI transcribes the audio when online, preserves typed input if something fails, and formats a structured draft with the details provided.", detail: "Friendly retry path" },
+  { icon: CheckCircle, num: "03", title: "Review, edit and copy", desc: "Solo workers copy into their workplace platform. Provider teams can review, approve and file notes through shared workflows.", detail: "You stay in control" },
   { icon: TrendingUp, num: "04", title: "Insights build over time", desc: "Aria tracks goal progress across notes, alerts when a participant needs plan review, and flags funding hours running low — all without anyone asking.", detail: "Proactive, not reactive" },
 ];
 
@@ -14,7 +14,7 @@ export default function HowItWorks() {
         <div className="text-center max-w-xl mx-auto mb-16">
           <p className="section-title mb-3">The process</p>
           <h2 className="font-display text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-            From shift to filed note
+            From shift to reviewed note
             <br />
             <span className="text-gradient-teal">in under 2 minutes.</span>
           </h2>
@@ -46,9 +46,9 @@ export default function HowItWorks() {
 
         <div className="mt-16 card p-6 md:p-8 border-aria-200 bg-aria-50/30 max-w-3xl mx-auto text-center">
           <p className="font-display text-xl font-bold text-slate-900 mb-2">
-            The average support worker spends <span className="text-gradient-teal">10+ hours per week</span> on documentation.
+            If notes take even <span className="text-gradient-teal">10-15 minutes each</span>, the admin drag compounds fast.
           </p>
-          <p className="text-slate-600">Aria reduces that to under 60 minutes. That&apos;s time back for care, family, and life.</p>
+          <p className="text-slate-600">Use the ROI calculator above to model your own team instead of relying on generic averages.</p>
         </div>
       </div>
     </section>

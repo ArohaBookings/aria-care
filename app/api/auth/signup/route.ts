@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { getAppUrl } from "@/lib/app-url";
 import { createAdminSupabase } from "@/lib/supabase/admin";
-import { sendSignupConfirmationEmail } from "@/lib/email/send";
+import { productModeForPlan } from "@/lib/usage-limits";
+import { sendWelcomeEmail } from "@/lib/email/send";
 
 export const runtime = "nodejs";
 
@@ -14,43 +13,6 @@ type SignupBody = {
   plan?: string;
 };
 
-const RESEND_AUTH_EMAILS_ENABLED = process.env.RESEND_AUTH_EMAILS === "true";
-
-function createAnonSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
-
-async function signupWithSupabaseEmail(args: {
-  email: string;
-  password: string;
-  redirectTo: string;
-  metadata: {
-    full_name: string;
-    organisation_name: string;
-    plan_intent: string;
-  };
-}) {
-  const anon = createAnonSupabase();
-  const { error } = await anon.auth.signUp({
-    email: args.email,
-    password: args.password,
-    options: {
-      emailRedirectTo: args.redirectTo,
-      data: args.metadata,
-    },
-  });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
-
-  return NextResponse.json({ ok: true, delivery: "supabase" });
-}
-
 async function signupInstantly(args: {
   email: string;
   password: string;
@@ -61,7 +23,7 @@ async function signupInstantly(args: {
   };
 }) {
   const admin = createAdminSupabase();
-  const { error } = await admin.auth.admin.createUser({
+  const { data, error } = await admin.auth.admin.createUser({
     email: args.email,
     password: args.password,
     email_confirm: true,
@@ -70,6 +32,72 @@ async function signupInstantly(args: {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  const userId = data.user?.id;
+  if (userId) {
+    const isSoloIntent = args.metadata.plan_intent.startsWith("solo");
+    const initialPlan = isSoloIntent ? "solo_free" : "trial";
+    const productMode = productModeForPlan(initialPlan);
+    const { data: profile } = await admin
+      .from("users")
+      .select("organisation_id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    let organisationId = profile?.organisation_id as string | null | undefined;
+    if (!organisationId) {
+      const { data: org, error: orgError } = await admin
+        .from("organisations")
+        .insert({
+          name: args.metadata.organisation_name,
+          contact_email: args.email,
+          subscription_tier: initialPlan,
+          subscription_status: initialPlan === "trial" ? "trialing" : "active",
+          trial_ends_at: initialPlan === "trial" ? new Date(Date.now() + 14 * 86400000).toISOString() : null,
+          product_mode: productMode,
+          participant_limit: isSoloIntent ? 0 : 10,
+          solo_note_limit_override: isSoloIntent ? null : null,
+        })
+        .select("id")
+        .single();
+      if (orgError) return NextResponse.json({ error: orgError.message }, { status: 500 });
+      organisationId = org.id;
+    } else {
+      const { error: orgUpdateError } = await admin
+        .from("organisations")
+        .update({
+          name: args.metadata.organisation_name,
+          contact_email: args.email,
+          subscription_tier: initialPlan,
+          subscription_status: initialPlan === "trial" ? "trialing" : "active",
+          trial_ends_at: initialPlan === "trial" ? new Date(Date.now() + 14 * 86400000).toISOString() : null,
+          product_mode: productMode,
+          participant_limit: isSoloIntent ? 0 : 10,
+          solo_note_limit_override: null,
+        })
+        .eq("id", organisationId);
+      if (orgUpdateError) return NextResponse.json({ error: orgUpdateError.message }, { status: 500 });
+    }
+
+    const { error: profileError } = await admin.from("users").upsert({
+      id: userId,
+      organisation_id: organisationId,
+      email: args.email,
+      full_name: args.metadata.full_name,
+      role: isSoloIntent ? "support_worker" : "owner",
+      account_type: isSoloIntent ? "solo" : "provider",
+      is_active: true,
+    }, { onConflict: "id" });
+    if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
+    if (!organisationId) return NextResponse.json({ error: "Organisation could not be created" }, { status: 500 });
+
+    await sendWelcomeEmail({
+      to: args.email,
+      organisationId,
+      userId,
+      fullName: args.metadata.full_name,
+    });
   }
 
   return NextResponse.json({ ok: true, delivery: "instant" });
@@ -81,8 +109,8 @@ export async function POST(request: NextRequest) {
     const email = body.email?.trim().toLowerCase();
     const password = body.password ?? "";
     const fullName = body.full_name?.trim() ?? "";
-    const organisationName = body.organisation_name?.trim() ?? "";
     const plan = body.plan?.trim() ?? "starter";
+    const organisationName = body.organisation_name?.trim() || (plan.startsWith("solo") ? "Solo Workspace" : "");
 
     if (!email || !password || !fullName || !organisationName) {
       return NextResponse.json({ error: "Missing required signup fields" }, { status: 400 });
@@ -92,62 +120,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
     }
 
-    const redirectTo = `${getAppUrl(request)}/auth/complete?type=signup`;
     const metadata = {
       full_name: fullName,
       organisation_name: organisationName,
       plan_intent: plan,
     };
 
-    // Keep the custom Resend auth path in place for later, but default to
-    // Supabase's managed auth emails until a verified Resend sending domain
-    // exists for production use.
-    if (process.env.RESEND_API_KEY && RESEND_AUTH_EMAILS_ENABLED) {
-      const admin = createAdminSupabase();
-      const { data, error } = await admin.auth.admin.generateLink({
-        type: "signup",
-        email,
-        password,
-        options: {
-          data: metadata,
-          redirectTo,
-        },
-      });
-
-      if (!error) {
-        const actionLink = data.properties?.action_link;
-
-        if (actionLink) {
-          const emailResult = await sendSignupConfirmationEmail({
-            to: email,
-            fullName,
-            organisationName,
-            actionLink,
-          });
-
-          if (emailResult.ok) {
-            return NextResponse.json({ ok: true, delivery: "resend" });
-          }
-        }
-
-        const anon = createAnonSupabase();
-        const { error: resendError } = await anon.auth.resend({
-          type: "signup",
-          email,
-          options: { emailRedirectTo: redirectTo },
-        });
-
-        if (!resendError) {
-          return NextResponse.json({ ok: true, delivery: "supabase" });
-        }
-
-        return NextResponse.json(
-          { error: "We created your account but could not send the confirmation email. Please try again." },
-          { status: 500 }
-        );
-      }
-    }
-
+    // Product signup is intentionally immediate: no confirmation emails,
+    // no magic links, no waiting room. The client signs in right after this.
     return signupInstantly({
       email,
       password,

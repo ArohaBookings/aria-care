@@ -9,12 +9,15 @@ interface OrgRow {
   user_count?: number; participant_count?: number;
 }
 
-const PLAN_PRICES: Record<string, number> = { starter: 149, growth: 349, business: 699 };
+const PLAN_PRICES: Record<string, number> = { starter: 149, growth: 349, business: 699, solo: 19, solo_pro: 29 };
 const PLAN_BADGE: Record<string, string> = {
   trial: "bg-slate-700 text-slate-300",
   starter: "bg-teal-900/50 text-teal-300",
   growth: "bg-blue-900/50 text-blue-300",
   business: "bg-purple-900/50 text-purple-300",
+  solo_free: "bg-slate-700 text-slate-300",
+  solo: "bg-cyan-900/50 text-cyan-300",
+  solo_pro: "bg-emerald-900/50 text-emerald-300",
 };
 
 export default function AdminOrgsPage() {
@@ -134,11 +137,11 @@ export default function AdminOrgsPage() {
                   <div className="flex items-center gap-2">
                     <select
                       className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
-                      onChange={e => e.target.value && doAction("change_plan", org.id, { plan: e.target.value, participantLimit: PLAN_PRICES[e.target.value] ? (e.target.value === "starter" ? 10 : e.target.value === "growth" ? 30 : 75) : 10 })}
+                      onChange={e => e.target.value && doAction("change_plan", org.id, { plan: e.target.value, participantLimit: PLAN_PRICES[e.target.value] ? (e.target.value === "starter" ? 10 : e.target.value === "growth" ? 30 : e.target.value === "business" ? 75 : 0) : 10 })}
                       defaultValue=""
                     >
                       <option value="" disabled>Select plan...</option>
-                      {["trial", "starter", "growth", "business"].map(p => (
+                      {["trial", "starter", "growth", "business", "solo_free", "solo", "solo_pro"].map(p => (
                         <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}{PLAN_PRICES[p] ? ` — $${PLAN_PRICES[p]}/mo` : ""}</option>
                       ))}
                     </select>

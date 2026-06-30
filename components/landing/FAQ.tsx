@@ -1,10 +1,10 @@
-const FAQS = [
-  { q: "Is Aria NDIS compliant?", a: "Yes. Every generated document follows current NDIS Practice Standards. Progress notes include all mandatory elements. We update templates whenever NDIS requirements change." },
+export const FAQS = [
+  { q: "Is Aria a substitute for review or compliance advice?", a: "No. Aria creates structured, review-ready drafts to help reduce missing details and blank-page writing. Your team should always review notes and follow your organisation's reporting process." },
   { q: "Do I need technical skills to set this up?", a: "No. Setup takes about 5 minutes — add your organisation details, invite your team, and you're ready. No IT support needed." },
-  { q: "What happens to our data?", a: "Your data is stored securely in Australia using encrypted cloud storage. We never share data with third parties and are fully compliant with Australian Privacy Act requirements." },
+  { q: "What happens to our data?", a: "Your data is stored in cloud infrastructure with access controls. Aria is designed with Australia and New Zealand privacy expectations in mind, and you control what you enter, review, save and paste into workplace systems." },
   { q: "Can support workers use it on their phones?", a: "Yes. The voice recorder is fully mobile-optimised and works on any smartphone. Workers don't need to install anything — it works in the browser." },
   { q: "Does it work for aged care providers too?", a: "Absolutely. While built with NDIS in mind, the documentation suite works for aged care, mental health, and any care sector where progress notes and compliance tracking are required." },
-  { q: "Can I import our existing participant data?", a: "Yes. We support CSV import and can help migrate data from ShiftCare, Careview, and other common platforms during onboarding." },
+  { q: "Does Aria officially integrate with ShiftCare, Lumary or Brevity?", a: "Not yet. Aria Care is currently designed to work alongside those systems with copy-ready drafts. You create the draft in Aria, review it, then paste it into your workplace platform." },
 ];
 
 export default function FAQ() {

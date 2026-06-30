@@ -25,6 +25,11 @@ export default function AdminSidebar({ admin }: { admin: { email: string; name: 
     router.refresh();
   };
 
+  const handleBackToApp = () => {
+    document.cookie = "aria_admin_customer_view=1; path=/; max-age=1800; SameSite=Lax";
+    window.location.assign("/dashboard");
+  };
+
   return (
     <div className="w-56 bg-slate-900 border-r border-slate-800 flex flex-col h-full flex-shrink-0">
       {/* Logo */}
@@ -63,9 +68,9 @@ export default function AdminSidebar({ admin }: { admin: { email: string; name: 
 
       {/* Back to app */}
       <div className="px-2 pb-2">
-        <Link href="/dashboard" className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-all">
+        <button onClick={handleBackToApp} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-all">
           <Zap className="w-4 h-4" /> Back to App
-        </Link>
+        </button>
       </div>
 
       {/* User */}

@@ -24,10 +24,23 @@ function LoginContent() {
   const handlePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError("");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) { setError(error.message); setLoading(false); }
     else {
-      router.push(getPostLoginRedirect(email, redirect));
+      const destination = getPostLoginRedirect(email, redirect);
+      const { data: profile } = data.user?.id
+        ? await supabase
+          .from("users")
+          .select("force_password_change")
+          .eq("id", data.user.id)
+          .maybeSingle()
+        : { data: null };
+
+      if (profile?.force_password_change) {
+        router.push(`/force-password-change?redirect=${encodeURIComponent(destination)}`);
+      } else {
+        router.push(destination);
+      }
       router.refresh();
     }
   };

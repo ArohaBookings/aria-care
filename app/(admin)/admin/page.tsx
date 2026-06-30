@@ -1,12 +1,11 @@
 import { createAdminSupabase } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { Users, Building2, DollarSign, TrendingUp, AlertCircle, Activity, ArrowUpRight } from "lucide-react";
+import { Users, Building2, DollarSign, TrendingUp, Activity, ArrowUpRight, FileText, Copy, CheckCircle, BarChart3, PieChart, Target } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 
 export default async function AdminOverviewPage() {
-  const supabase = await createClient();
   const adminSb = createAdminSupabase();
+  const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
 
   const [
     { count: totalUsers },
@@ -16,6 +15,11 @@ export default async function AdminOverviewPage() {
     { data: recentOrgs },
     { data: recentAudit },
     { data: planCounts },
+    { data: monthlySoloRows },
+    { data: soloFunnelUsers },
+    { data: allSoloRows },
+    { count: totalSoloNotes },
+    { count: providerNotesMonth },
   ] = await Promise.all([
     adminSb.from("users").select("*", { count: "exact", head: true }),
     adminSb.from("organisations").select("*", { count: "exact", head: true }),
@@ -24,10 +28,15 @@ export default async function AdminOverviewPage() {
     adminSb.from("organisations").select("id, name, subscription_tier, subscription_status, created_at, contact_email").order("created_at", { ascending: false }).limit(8),
     adminSb.from("admin_audit_log").select("action, admin_email, target_type, created_at").order("created_at", { ascending: false }).limit(10),
     adminSb.from("organisations").select("subscription_tier").neq("subscription_tier", "trial"),
+    adminSb.from("solo_notes").select("user_id, note_type, copied_at, submitted_at, created_at").gte("created_at", monthStart).limit(5000),
+    adminSb.from("users").select("id, account_type, solo_usage_reset_at, organisations(subscription_tier, product_mode, solo_note_limit_override)").limit(10000),
+    adminSb.from("solo_notes").select("user_id, copied_at, submitted_at, created_at").limit(10000),
+    adminSb.from("solo_notes").select("*", { count: "exact", head: true }),
+    adminSb.from("progress_notes").select("*", { count: "exact", head: true }).gte("created_at", monthStart),
   ]);
 
   // MRR calculation
-  const PLAN_PRICES: Record<string, number> = { starter: 149, growth: 349, business: 699 };
+  const PLAN_PRICES: Record<string, number> = { starter: 149, growth: 349, business: 699, solo: 19, solo_pro: 29 };
   const mrr = (planCounts ?? []).reduce((sum, o) => sum + (PLAN_PRICES[o.subscription_tier] ?? 0), 0);
 
   const PLAN_BADGE: Record<string, string> = {
@@ -35,7 +44,78 @@ export default async function AdminOverviewPage() {
     starter: "bg-teal-900 text-teal-300",
     growth: "bg-blue-900 text-blue-300",
     business: "bg-purple-900 text-purple-300",
+    solo_free: "bg-slate-700 text-slate-300",
+    solo: "bg-cyan-900 text-cyan-300",
+    solo_pro: "bg-emerald-900 text-emerald-300",
   };
+
+  let soloMetrics = {
+    solo_users: 0,
+    provider_users: totalUsers ?? 0,
+    free_solo_users: 0,
+    paid_solo_users: 0,
+    monthly_solo_notes: 0,
+    note_type_counts: {} as Record<string, number>,
+    platform_counts: {} as Record<string, number>,
+    feedback_count: 0,
+  };
+  const { data: soloMetricData } = await adminSb.from("admin_solo_metrics").select("*").maybeSingle();
+  if (soloMetricData) {
+    soloMetrics = {
+      ...soloMetrics,
+      ...soloMetricData,
+      note_type_counts: (soloMetricData.note_type_counts ?? {}) as Record<string, number>,
+      platform_counts: (soloMetricData.platform_counts ?? {}) as Record<string, number>,
+    };
+  }
+
+  const soloRowsThisMonth = monthlySoloRows ?? [];
+  const monthlySoloNotes = soloMetrics.monthly_solo_notes || soloRowsThisMonth.length;
+  const copiedSoloMonth = soloRowsThisMonth.filter((row) => row.copied_at).length;
+  const submittedSoloMonth = soloRowsThisMonth.filter((row) => row.submitted_at).length;
+  const allStoriesMonth = monthlySoloNotes + (providerNotesMonth ?? 0);
+  const soloConversionRate = soloMetrics.solo_users > 0
+    ? Math.round((soloMetrics.paid_solo_users / soloMetrics.solo_users) * 100)
+    : 0;
+  const copyRate = monthlySoloNotes > 0 ? Math.round((copiedSoloMonth / monthlySoloNotes) * 100) : 0;
+  const submittedRate = monthlySoloNotes > 0 ? Math.round((submittedSoloMonth / monthlySoloNotes) * 100) : 0;
+  const noteTypeCounts = soloRowsThisMonth.reduce<Record<string, number>>((acc, row) => {
+    const key = row.note_type || "progress";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+  const noteTypeEntries = Object.entries(Object.keys(noteTypeCounts).length ? noteTypeCounts : soloMetrics.note_type_counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([label, value]) => ({ label: label.replaceAll("_", " "), value }));
+  const platformEntries = Object.entries(soloMetrics.platform_counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([label, value]) => ({ label: label || "Not selected", value }));
+  const soloFunnelRecords = (soloFunnelUsers ?? []).filter((row: any) => {
+    const org = row.organisations as { product_mode?: string; subscription_tier?: string } | null;
+    return row.account_type === "solo" || org?.product_mode === "solo" || org?.subscription_tier?.startsWith("solo");
+  });
+  const allSoloRowsSafe = allSoloRows ?? [];
+  const totalNotesByUser = allSoloRowsSafe.reduce<Record<string, number>>((acc: Record<string, number>, row: any) => {
+    if (!row.user_id) return acc;
+    acc[row.user_id] = (acc[row.user_id] ?? 0) + 1;
+    return acc;
+  }, {});
+  const monthlyNotesByUser = soloRowsThisMonth.reduce<Record<string, number>>((acc: Record<string, number>, row: any) => {
+    if (!row.user_id) return acc;
+    acc[row.user_id] = (acc[row.user_id] ?? 0) + 1;
+    return acc;
+  }, {});
+  const usersWithZeroNotes = soloFunnelRecords.filter((row: any) => !totalNotesByUser[row.id]).length;
+  const usersWithOneNote = soloFunnelRecords.filter((row: any) => totalNotesByUser[row.id] === 1).length;
+  const usersWhoCopied = new Set(allSoloRowsSafe.filter((row: any) => row.copied_at).map((row: any) => row.user_id)).size;
+  const freeLimitUsers = soloFunnelRecords.filter((row: any) => {
+    const org = row.organisations as { subscription_tier?: string; solo_note_limit_override?: number | null } | null;
+    if (org?.subscription_tier !== "solo_free") return false;
+    const limit = org?.solo_note_limit_override ?? 3;
+    return (monthlyNotesByUser[row.id] ?? 0) >= limit;
+  }).length;
 
   return (
     <div className="p-6 space-y-6">
@@ -64,6 +144,78 @@ export default async function AdminOverviewPage() {
         ))}
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Solo Users", value: soloMetrics.solo_users, color: "text-cyan-400" },
+          { label: "Free Solo", value: soloMetrics.free_solo_users, color: "text-slate-300" },
+          { label: "Paid Solo", value: soloMetrics.paid_solo_users, color: "text-emerald-400" },
+          { label: "Stories This Month", value: allStoriesMonth, color: "text-teal-400" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <p className={`font-display text-3xl font-bold ${color} mb-0.5`}>{Number(value ?? 0).toLocaleString()}</p>
+            <p className="text-xs text-slate-500">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <div className="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 overflow-hidden relative">
+          <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-cyan-400/10 blur-3xl animate-soft-float" />
+          <div className="relative flex items-center justify-between mb-5">
+            <div>
+              <h3 className="font-semibold text-white text-sm flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-cyan-300" /> Story Mix This Month
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">Solo note type usage without exposing private note content.</p>
+            </div>
+            <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs font-bold text-slate-300">
+              {monthlySoloNotes.toLocaleString()} Solo
+            </span>
+          </div>
+          <BarList items={noteTypeEntries} emptyLabel="No Solo stories generated this month yet." />
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h3 className="font-semibold text-white text-sm flex items-center gap-2 mb-5">
+            <Target className="w-4 h-4 text-emerald-300" /> Conversion Pulse
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            <DonutStat label="Paid Solo" value={soloConversionRate} color="#34d399" />
+            <DonutStat label="Copied" value={copyRate} color="#22d3ee" />
+            <DonutStat label="Submitted" value={submittedRate} color="#2dd4bf" />
+          </div>
+          <div className="mt-5 space-y-2 text-xs">
+            <div className="flex justify-between rounded-xl bg-slate-950/70 px-3 py-2">
+              <span className="text-slate-500">Total Solo stories</span>
+              <span className="font-semibold text-slate-200">{(totalSoloNotes ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between rounded-xl bg-slate-950/70 px-3 py-2">
+              <span className="text-slate-500">Provider notes this month</span>
+              <span className="font-semibold text-slate-200">{(providerNotesMonth ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between rounded-xl bg-slate-950/70 px-3 py-2">
+              <span className="text-slate-500">Feedback submitted</span>
+              <span className="font-semibold text-slate-200">{soloMetrics.feedback_count.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "0-note Solo users", value: usersWithZeroNotes, hint: "Activation gap", color: "text-amber-300" },
+          { label: "1-note Solo users", value: usersWithOneNote, hint: "Second-use opportunity", color: "text-cyan-300" },
+          { label: "Users who copied", value: usersWhoCopied, hint: "Ever copied a draft", color: "text-emerald-300" },
+          { label: "Hit free limit", value: freeLimitUsers, hint: "This month", color: "text-rose-300" },
+        ].map(({ label, value, hint, color }) => (
+          <div key={label} className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <p className={`font-display text-3xl font-bold ${color} mb-0.5`}>{Number(value ?? 0).toLocaleString()}</p>
+            <p className="text-xs text-slate-400">{label}</p>
+            <p className="mt-1 text-[10px] text-slate-600">{hint}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Trial vs paid breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -75,6 +227,8 @@ export default async function AdminOverviewPage() {
               { label: "Business ($699)", count: planCounts?.filter(o => o.subscription_tier === "business").length ?? 0, color: "bg-purple-500" },
               { label: "Growth ($349)", count: planCounts?.filter(o => o.subscription_tier === "growth").length ?? 0, color: "bg-blue-500" },
               { label: "Starter ($149)", count: planCounts?.filter(o => o.subscription_tier === "starter").length ?? 0, color: "bg-teal-500" },
+              { label: "Solo Pro ($29)", count: planCounts?.filter(o => o.subscription_tier === "solo_pro").length ?? 0, color: "bg-emerald-500" },
+              { label: "Solo ($19)", count: planCounts?.filter(o => o.subscription_tier === "solo").length ?? 0, color: "bg-cyan-500" },
               { label: "Trial", count: trialOrgs ?? 0, color: "bg-slate-600" },
             ].map(({ label, count, color }) => {
               const total = (totalOrgs ?? 1);
@@ -121,6 +275,43 @@ export default async function AdminOverviewPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="font-semibold text-white text-sm flex items-center gap-2">
+                <PieChart className="w-4 h-4 text-teal-300" /> Platforms Solo Users Mention
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">Useful for positioning around ShiftCare, Lumary, Brevity and other copy/paste workflows.</p>
+            </div>
+          </div>
+          <BarList items={platformEntries} emptyLabel="No platform selections captured yet." />
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <h3 className="font-semibold text-white text-sm flex items-center gap-2 mb-5">
+            <TrendingUp className="w-4 h-4 text-emerald-300" /> Upgrade Levers
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Free to paid", value: `${soloConversionRate}%`, icon: CheckCircle, hint: `${soloMetrics.paid_solo_users}/${Math.max(soloMetrics.solo_users, 1)} Solo users` },
+              { label: "Copy adoption", value: `${copyRate}%`, icon: Copy, hint: `${copiedSoloMonth}/${Math.max(monthlySoloNotes, 1)} copied` },
+              { label: "Solo activity", value: monthlySoloNotes.toLocaleString(), icon: FileText, hint: "Solo stories this month" },
+              { label: "Provider activity", value: (providerNotesMonth ?? 0).toLocaleString(), icon: Building2, hint: "Team notes this month" },
+            ].map(({ label, value, icon: Icon, hint }) => (
+              <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300">
+                  <Icon className="h-4 w-4" />
+                </div>
+                <p className="font-display text-2xl font-bold text-white">{value}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-400">{label}</p>
+                <p className="mt-1 text-[10px] text-slate-600">{hint}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Recent signups */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
@@ -154,6 +345,58 @@ export default async function AdminOverviewPage() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function BarList({ items, emptyLabel }: { items: Array<{ label: string; value: number }>; emptyLabel: string }) {
+  const max = Math.max(...items.map((item) => item.value), 1);
+
+  if (!items.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/50 p-8 text-center text-sm text-slate-500">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item, index) => {
+        const pct = Math.max(6, Math.round((item.value / max) * 100));
+        return (
+          <div key={item.label}>
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="capitalize text-slate-400">{item.label}</span>
+              <span className="font-semibold text-slate-200">{item.value.toLocaleString()}</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="chart-bar-pop h-full rounded-full bg-gradient-to-r from-teal-400 to-cyan-400"
+                style={{ width: `${pct}%`, animationDelay: `${index * 70}ms` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DonutStat({ label, value, color }: { label: string; value: number; color: string }) {
+  const safeValue = Math.max(0, Math.min(100, value));
+
+  return (
+    <div className="text-center">
+      <div
+        className="mx-auto grid h-20 w-20 place-items-center rounded-full p-1"
+        style={{ background: `conic-gradient(${color} ${safeValue}%, rgba(51, 65, 85, 0.85) 0)` }}
+      >
+        <div className="grid h-full w-full place-items-center rounded-full bg-slate-900">
+          <span className="font-display text-lg font-bold text-white">{safeValue}%</span>
+        </div>
+      </div>
+      <p className="mt-2 text-[11px] font-semibold text-slate-400">{label}</p>
     </div>
   );
 }

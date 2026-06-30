@@ -160,7 +160,9 @@ select
   case o.subscription_tier
     when 'starter'  then 149
     when 'growth'   then 349
-    when 'business' then 749
+    when 'business' then 699
+    when 'solo' then 19
+    when 'solo_pro' then 29
     else 0
   end as monthly_value_aud,
   (select count(*) from public.users u where u.organisation_id = o.id) as staff_count,

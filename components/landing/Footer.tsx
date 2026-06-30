@@ -6,17 +6,22 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-16">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
           <div className="col-span-2">
-            <div className="font-display text-2xl font-bold text-slate-900 mb-3">Aria</div>
+            <div className="font-display text-2xl font-bold text-slate-900 mb-3">Aria Care</div>
             <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
-              The AI operating system for NDIS and aged care providers. Built in Australia.
+              Copy-ready support note drafts for individual workers and provider teams. Built in New Zealand for support workers and providers across Australia & NZ.
             </p>
           </div>
           <div>
             <p className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-4">Product</p>
             <ul className="space-y-2.5 text-sm text-slate-600">
               <li><Link href="/#features" className="hover:text-aria-600 transition-colors">Features</Link></li>
+              <li><Link href="/about" className="hover:text-aria-600 transition-colors">About Aria Care</Link></li>
+              <li><Link href="/progress-notes" className="hover:text-aria-600 transition-colors">Progress notes guide</Link></li>
+              <li><Link href="/blog" className="hover:text-aria-600 transition-colors">Blog</Link></li>
+              <li><Link href="/#roi" className="hover:text-aria-600 transition-colors">ROI calculator</Link></li>
               <li><Link href="/#pricing" className="hover:text-aria-600 transition-colors">Pricing</Link></li>
-              <li><Link href="/signup" className="hover:text-aria-600 transition-colors">Start free trial</Link></li>
+              <li><Link href="/support" className="hover:text-aria-600 transition-colors">Support</Link></li>
+              <li><Link href="/signup?plan=solo_free" className="hover:text-aria-600 transition-colors">Start Free Solo</Link></li>
             </ul>
           </div>
           <div>
@@ -33,7 +38,7 @@ export default function Footer() {
           <div className="flex items-center gap-5 text-xs text-slate-500">
             <Link href="/privacy" className="hover:text-slate-900 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-slate-900 transition-colors">Terms</Link>
-            <span>Made in Australia</span>
+            <span>Built in New Zealand for Australia & NZ</span>
           </div>
         </div>
       </div>

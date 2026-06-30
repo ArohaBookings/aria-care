@@ -2,14 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 import { getAppUrl } from "@/lib/app-url";
+import { isSoloPlan } from "@/lib/usage-limits";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
 
-const PRICE_IDS: Record<string, string> = {
-  starter:  process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID!,
-  growth:   process.env.NEXT_PUBLIC_STRIPE_GROWTH_PRICE_ID!,
-  business: process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID!,
-};
+function env(name: string) {
+  return process.env[name] ?? "";
+}
+
+function getPriceId(plan: string, country?: string | null) {
+  const currency = country === "NZ" || country === "New Zealand" ? "NZD" : "AUD";
+  const priceIds: Record<string, string> = {
+    starter: env("NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID"),
+    growth: env("NEXT_PUBLIC_STRIPE_GROWTH_PRICE_ID"),
+    business: env("NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID"),
+    solo: currency === "NZD"
+      ? env("NEXT_PUBLIC_STRIPE_SOLO_NZD_PRICE_ID") || env("STRIPE_SOLO_NZD_PRICE_ID")
+      : env("NEXT_PUBLIC_STRIPE_SOLO_AUD_PRICE_ID") || env("STRIPE_SOLO_AUD_PRICE_ID"),
+    solo_pro: currency === "NZD"
+      ? env("NEXT_PUBLIC_STRIPE_SOLO_PRO_NZD_PRICE_ID") || env("STRIPE_SOLO_PRO_NZD_PRICE_ID")
+      : env("NEXT_PUBLIC_STRIPE_SOLO_PRO_AUD_PRICE_ID") || env("STRIPE_SOLO_PRO_AUD_PRICE_ID"),
+  };
+  return priceIds[plan];
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,13 +41,18 @@ export async function POST(request: NextRequest) {
 
     const { data: org } = await supabase
       .from("organisations")
-      .select("stripe_customer_id, name")
+      .select("stripe_customer_id, name, billing_country, product_mode")
       .eq("id", profile?.organisation_id)
       .single();
 
-    const { plan } = await request.json();
-    const priceId = PRICE_IDS[plan];
+    const { plan, country } = await request.json();
+    if (plan === "solo_free") {
+      return NextResponse.json({ error: "Free Solo does not require Stripe checkout" }, { status: 400 });
+    }
+    const checkoutCountry = country ?? org?.billing_country ?? "AU";
+    const priceId = getPriceId(plan, checkoutCountry);
     if (!priceId) return NextResponse.json({ error: `Invalid plan: ${plan}` }, { status: 400 });
+    const productMode = isSoloPlan(plan) ? "solo" : "provider";
 
     // Get or create Stripe customer
     let customerId = org?.stripe_customer_id;
@@ -43,6 +63,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           supabase_user_id: user.id,
           organisation_id: profile?.organisation_id ?? "",
+          product_mode: productMode,
         },
       });
       customerId = customer.id;
@@ -69,13 +90,13 @@ export async function POST(request: NextRequest) {
       allow_promotion_codes: true,
       // Require card upfront even during trial — no anonymous trials.
       payment_method_collection: "always",
-      metadata: { organisation_id: profile?.organisation_id ?? "", plan, user_id: user.id },
+      metadata: { organisation_id: profile?.organisation_id ?? "", plan, user_id: user.id, product_mode: productMode },
       subscription_data: {
         ...(hadSub ? {} : { trial_period_days: 14 }),
         trial_settings: {
           end_behavior: { missing_payment_method: "cancel" },
         },
-        metadata: { organisation_id: profile?.organisation_id ?? "", plan },
+        metadata: { organisation_id: profile?.organisation_id ?? "", plan, product_mode: productMode },
       },
     });
 

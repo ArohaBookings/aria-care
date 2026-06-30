@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Voice-to-note error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate note. Please try again." },
+      { error: "Failed to generate note. Your input is preserved in the form where possible, so please try again." },
       { status: 500 }
     );
   }

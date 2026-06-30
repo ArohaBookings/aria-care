@@ -3,27 +3,27 @@ import { Mic, Shield, DollarSign, Calendar, FileText, Bot, Users, AlertTriangle 
 const FEATURES = [
   {
     icon: Mic,
-    title: "Voice-to-Progress-Note",
-    description: "Workers record a 60-second voice memo. Aria transcribes, structures, and generates a fully NDIS-compliant progress note. 45 minutes → 90 seconds.",
+    title: "Solo Voice-to-Note",
+    description: "Record a 60-second after-shift voice memo. Aria turns it into a structured draft you can review and copy into ShiftCare, Lumary, Brevity, or any workplace platform.",
     highlight: true,
-    tag: "Most loved",
+    tag: "Solo",
   },
   {
     icon: FileText,
     title: "AI Document Suite",
-    description: "Support plans, incident reports, risk assessments, handover notes — all generated from guided inputs. Every document audit-ready.",
+    description: "Support plans, incident reports, risk assessments, handover notes — generated from guided inputs as structured drafts for human review.",
     tag: "Core",
   },
   {
     icon: Shield,
-    title: "Compliance Command Centre",
-    description: "Every staff certification, participant plan review, and incident report tracked with 90/60/30-day alerts. Know your compliance status in 10 seconds.",
+    title: "Review and rework radar",
+    description: "Spot notes that may need more detail before they become coordinator rework: vague wording, missing presentation, weak handover or unclear incident follow-up.",
     tag: "Core",
   },
   {
     icon: DollarSign,
     title: "Intelligent Billing Assistant",
-    description: "Matches shift records to NDIS line items automatically. Flags missing notes before submission. Stops you leaving money on the table.",
+    description: "Helps teams compare shift records, notes and billing readiness so missing documentation is easier to catch before admin time is wasted.",
     tag: "Pro",
   },
   {
@@ -35,25 +35,25 @@ const FEATURES = [
   {
     icon: Bot,
     title: "AI Coordinator Agent",
-    description: "Background AI that monitors participants, drafts plan review emails, sends worker briefings, and chases missing notes — proactively.",
+    description: "Practical assistant workflows for drafting follow-up messages, worker briefings and missing-note nudges while coordinators stay in control.",
     tag: "Business",
   },
   {
     icon: Users,
     title: "Participant Portal",
-    description: "Participants and families see their schedule, goals, and support history in a clean, read-only portal. Reduce coordinator phone calls by 60%.",
+    description: "A read-only pathway for schedules, goals and support history when providers want clearer visibility for participants and families.",
     tag: "Pro",
   },
   {
     icon: AlertTriangle,
     title: "Audit Pack Generator",
-    description: "NDIS audit coming? One click pulls all documentation for any participant — notes, plans, incidents, billing — formatted for the auditor.",
+    description: "Pull participant notes, plans, incidents and billing context into a review pack your team can check before any formal use.",
     tag: "Core",
   },
 ];
 
 const TAG_STYLES: Record<string, string> = {
-  "Most loved": "bg-aria-50 text-aria-700 border-aria-200",
+  Solo: "bg-aria-50 text-aria-700 border-aria-200",
   Core: "bg-slate-100 text-slate-600 border-slate-200",
   Pro: "bg-blue-50 text-blue-700 border-blue-200",
   Business: "bg-purple-50 text-purple-700 border-purple-200",
@@ -64,14 +64,14 @@ export default function Features() {
     <section id="features" className="py-24 px-6">
       <div className="max-w-7xl mx-auto">
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <p className="section-title mb-3">Everything you need</p>
+          <p className="section-title mb-3">Purpose-built documentation</p>
           <h2 className="font-display text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-            Not a scheduling app.
+            Not another generic AI writer.
             <br />
-            <span className="text-gradient-teal">An operating system.</span>
+            <span className="text-gradient-teal">A support-note workflow.</span>
           </h2>
           <p className="text-slate-600 text-lg leading-relaxed">
-            ShiftCare and Careview schedule shifts. Aria handles everything that happens before, during, and after — the documentation, compliance, and billing that&apos;s burying your team.
+            Use Aria Care even if your company is not ready yet. Individuals can create copy-ready drafts today, and providers can move to team workflows when documentation needs to scale.
           </p>
         </div>
 

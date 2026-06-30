@@ -6,7 +6,9 @@ import {
   INCIDENT_REPORT_PROMPT,
   EMAIL_DRAFT_PROMPT,
   HANDOVER_NOTE_PROMPT,
+  SOLO_NOTE_PROMPT,
 } from "./prompts";
+import { buildFallbackProgressNote, buildFallbackSoloNote } from "@/lib/notes/fallbacks";
 
 // ============================================================
 // MODEL ROUTER — tries OpenAI first, falls back to Anthropic
@@ -52,6 +54,136 @@ function parseJSON<T>(text: string): T {
   return JSON.parse(clean) as T;
 }
 
+const DRAFT_ONLY_REMINDER = "Draft only — please review and edit before submitting to your workplace system.";
+
+const PROGRESS_NOTE_HEADINGS = [
+  "Participant presentation:",
+  "Support provided:",
+  "Goals/outcomes:",
+  "Mood/risk/concerns:",
+  "Daily living skills:",
+  "Incidents/injuries:",
+  "Handover/follow-up:",
+];
+
+const INCIDENT_NOTE_HEADINGS = [
+  "What happened:",
+  "When/where:",
+  "Who was involved:",
+  "Immediate response:",
+  "Injuries/risks:",
+  "Notifications/escalation:",
+  "Follow-up required:",
+];
+
+const HANDOVER_NOTE_HEADINGS = [
+  "Key updates:",
+  "What worked:",
+  "What to watch:",
+  "Next shift notes:",
+  "Risks/concerns:",
+];
+
+const ALWAYS_AVOID_PHRASES = [
+  "utilized",
+  "proceeded comfortably",
+  "demonstrated significant improvement",
+  "it is recommended",
+  "non-compliant",
+  "ndis compliant",
+  "legally compliant",
+  "clinically approved",
+  "guaranteed safe",
+];
+
+function includesHeading(text: string, heading: string) {
+  return text.toLowerCase().includes(heading.toLowerCase());
+}
+
+function noteInputSupportsNoIncidentStatement(input: string) {
+  return /\b(no|none|nil|not any)\s+(incidents?|injur(?:y|ies)|concerns?|risks?)\b/i.test(input)
+    || /\bno (incidents?|injur(?:y|ies)|concerns?|risks?) (noted|reported|to report)\b/i.test(input);
+}
+
+function qualityIssuesForNote(noteText: string, sourceInput: string, noteType: string) {
+  const issues: string[] = [];
+  const lowerNote = noteText.toLowerCase();
+  const lowerInput = sourceInput.toLowerCase();
+  const expectedHeadings = noteType === "incident" || noteType === "risk"
+    ? INCIDENT_NOTE_HEADINGS
+    : noteType === "handover"
+      ? HANDOVER_NOTE_HEADINGS
+      : noteType === "progress"
+        ? PROGRESS_NOTE_HEADINGS
+        : [];
+
+  const missingHeadings = expectedHeadings.filter((heading) => !includesHeading(noteText, heading));
+  if (missingHeadings.length) {
+    issues.push(`Add the required headings: ${missingHeadings.join(", ")}`);
+  }
+
+  const badPhrases = ALWAYS_AVOID_PHRASES.filter((phrase) => lowerNote.includes(phrase));
+  if (badPhrases.length) {
+    issues.push(`Replace unsupported or unsafe wording: ${badPhrases.join(", ")}`);
+  }
+
+  if (lowerNote.includes("refused") && !lowerInput.includes("refused")) {
+    issues.push("Avoid 'refused' unless the worker explicitly used that wording; use plain factual wording instead.");
+  }
+
+  if (lowerNote.includes("aggressive") && !lowerInput.includes("aggressive")) {
+    issues.push("Avoid 'aggressive' unless explicitly stated and contextually necessary.");
+  }
+
+  const noteSaysNoIncidents = /\bno (incidents?|injur(?:y|ies)|concerns?|risks?)\b/i.test(noteText)
+    || /\bno incidents\/injuries\b/i.test(noteText);
+  if (noteSaysNoIncidents && !noteInputSupportsNoIncidentStatement(sourceInput)) {
+    issues.push("Do not mention no incidents, injuries, risks, or concerns unless the worker stated that.");
+  }
+
+  if (noteText.length > 2600) {
+    issues.push("Shorten the note so it is easy to skim and paste into a workplace platform.");
+  }
+
+  return issues;
+}
+
+async function generateReviewedJSON<T>({
+  systemPrompt,
+  userContent,
+  getIssues,
+}: {
+  systemPrompt: string;
+  userContent: string;
+  getIssues: (result: T) => string[];
+}): Promise<T> {
+  let best: T | null = null;
+  let issues: string[] = [];
+
+  for (let pass = 1; pass <= 3; pass += 1) {
+    const content = pass === 1
+      ? userContent
+      : `${userContent}
+
+QUALITY REVIEW FEEDBACK FROM PREVIOUS DRAFT:
+- ${issues.join("\n- ")}
+
+PREVIOUS JSON DRAFT:
+${JSON.stringify(best, null, 2)}
+
+Revise the draft so it passes the quality review. Return valid JSON only.`;
+
+    const raw = await callAI(systemPrompt, content);
+    const parsed = parseJSON<T>(raw);
+    best = parsed;
+    issues = getIssues(parsed);
+    if (issues.length === 0) return parsed;
+  }
+
+  if (!best) throw new Error("AI generation failed before producing a draft.");
+  return best;
+}
+
 // ============================================================
 // PROGRESS NOTE from voice transcript or bullet points
 // ============================================================
@@ -63,6 +195,7 @@ export interface ProgressNoteResult {
   incidentFlagged: boolean;
   suggestedReview: boolean;
   suggestedReviewReason: string;
+  fallbackMode?: boolean;
 }
 
 export async function generateProgressNote(
@@ -77,8 +210,19 @@ Diagnoses/Conditions: ${participantContext.diagnoses?.join(", ") || "Not specifi
 SUPPORT WORKER INPUT:
 ${transcript}`;
 
-  const result = await callAI(PROGRESS_NOTE_PROMPT, userContent);
-  return parseJSON<ProgressNoteResult>(result);
+  try {
+    return await generateReviewedJSON<ProgressNoteResult>({
+      systemPrompt: PROGRESS_NOTE_PROMPT,
+      userContent,
+      getIssues: (result) => qualityIssuesForNote(result.noteText ?? "", transcript, "progress"),
+    });
+  } catch (error) {
+    console.error("[ai] Progress note generation fallback:", error);
+    return {
+      ...buildFallbackProgressNote(transcript, participantContext),
+      fallbackMode: true,
+    };
+  }
 }
 
 // ============================================================
@@ -157,4 +301,69 @@ export async function generateHandoverNote(transcript: string, participantName: 
   const userContent = `Participant: ${participantName}\n\nWorker notes:\n${transcript}`;
   const result = await callAI(HANDOVER_NOTE_PROMPT, userContent);
   return parseJSON<HandoverResult>(result);
+}
+
+export interface SoloNoteResult {
+  noteText: string;
+  shortText: string;
+  handoverSummary: string;
+  incidentSummary: string;
+  noteType: "progress" | "incident" | "handover" | "risk" | "support_summary";
+  riskFlagged: boolean;
+  reviewReminder: string;
+  fallbackUsed?: boolean;
+}
+
+export async function generateSoloNoteDraft(args: {
+  input: string;
+  noteType: string;
+  detailLevel: string;
+  country?: string;
+  formattingMode?: string;
+  context?: Record<string, unknown>;
+}): Promise<SoloNoteResult> {
+  const userContent = `NOTE TYPE: ${args.noteType}
+COUNTRY: ${args.country ?? "Australia"}
+DETAIL LEVEL: ${args.detailLevel}
+OUTPUT FORMAT: ${args.formattingMode ?? "structured headings"}
+
+OPTIONAL CONTEXT:
+${JSON.stringify(args.context ?? {}, null, 2)}
+
+SUPPORT WORKER INPUT:
+${args.input}`;
+
+  try {
+    const result = await generateReviewedJSON<SoloNoteResult>({
+      systemPrompt: SOLO_NOTE_PROMPT,
+      userContent,
+      getIssues: (draft) => {
+        const generatedType = draft.noteType || args.noteType;
+        const qualityType = args.formattingMode === "handover_only"
+          ? "handover"
+          : args.formattingMode === "incident_summary"
+            ? "incident"
+            : generatedType;
+        const issues = qualityIssuesForNote(draft.noteText ?? "", args.input, qualityType);
+        if (!draft.reviewReminder?.toLowerCase().includes("draft")) {
+          issues.push("Include the draft-only human review reminder.");
+        }
+        return issues;
+      },
+    });
+
+    return {
+      ...result,
+      reviewReminder: result.reviewReminder || DRAFT_ONLY_REMINDER,
+    };
+  } catch (error) {
+    console.error("[ai] Solo note generation fallback:", error);
+    return buildFallbackSoloNote({
+      input: args.input,
+      noteType: args.noteType,
+      detailLevel: args.detailLevel,
+      formattingMode: args.formattingMode,
+      context: args.context,
+    });
+  }
 }

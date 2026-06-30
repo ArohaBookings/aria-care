@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminSupabase, requireAdmin, logAdminAction } from "@/lib/supabase/admin";
+import { sendWelcomeEmail } from "@/lib/email/send";
 
-const PLAN_LIMITS: Record<string, number> = { trial: 10, starter: 10, growth: 30, business: 75 };
+const PLAN_LIMITS: Record<string, number> = { trial: 10, starter: 10, growth: 30, business: 75, solo_free: 0, solo: 0, solo_pro: 0 };
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,7 +60,9 @@ export async function POST(request: NextRequest) {
         await sb.from("organisations").update({
           subscription_tier: plan,
           subscription_status: plan === "trial" ? "trialing" : "active",
+          product_mode: plan?.startsWith("solo") ? "solo" : "provider",
           participant_limit: limit,
+          solo_note_limit_override: plan === "solo_pro" ? 400 : plan === "solo" ? 125 : null,
         }).eq("id", orgId);
         await logAdminAction(admin.id, admin.email, "change_plan", "organisation", orgId, { plan, limit });
         return NextResponse.json({ message: `Plan changed to ${plan}` });
@@ -102,9 +105,32 @@ export async function POST(request: NextRequest) {
       }
 
       case "send_welcome": {
-        // In production hook this to your email service (Resend, SendGrid etc)
+        const { data: org } = await sb
+          .from("organisations")
+          .select("id, contact_email, name")
+          .eq("id", orgId)
+          .single();
+        const { data: owner } = await sb
+          .from("users")
+          .select("id, email, full_name")
+          .eq("organisation_id", orgId)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        const recipient = org?.contact_email || owner?.email;
+        if (!recipient || !org?.id) {
+          return NextResponse.json({ error: "No recipient email found for this organisation" }, { status: 400 });
+        }
+
+        await sendWelcomeEmail({
+          to: recipient,
+          organisationId: org.id,
+          userId: owner?.id ?? null,
+          fullName: owner?.full_name || org.name || "there",
+        });
         await logAdminAction(admin.id, admin.email, "send_welcome", "organisation", orgId, {});
-        return NextResponse.json({ message: "Welcome email queued (configure email service to activate)" });
+        return NextResponse.json({ message: "Welcome email sent through Resend" });
       }
 
       default:

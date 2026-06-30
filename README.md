@@ -1,15 +1,15 @@
 # Aria 🌊
 ### AI Operating System for NDIS & Disability Support Providers
 
-> Turn 45-minute progress notes into 90-second voice memos. Built for Australia and New Zealand.
+> Turn rough shift notes into structured, copy-ready progress note drafts. Built in New Zealand for support workers and providers across Australia & NZ.
 
 ---
 
 ## What Is Aria
 
-Aria is a complete B2B SaaS platform for disability support providers. Support workers record a voice memo after each shift — Aria writes the NDIS-compliant progress note. Coordinators get a full compliance dashboard, billing intelligence, and smart rostering.
+Aria is a B2B and Solo SaaS platform for disability support documentation. Support workers record a voice memo or type bullet points after each shift, then Aria writes a structured draft for review and copy/paste workflows. Coordinators get dashboards, billing readiness, rostering pathways and review visibility.
 
-**The hero feature:** Voice → progress note in ~8 seconds, NDIS compliant, ready to file.
+**The hero feature:** Voice or bullet points → structured progress note draft that workers review before filing.
 
 ---
 
@@ -176,4 +176,4 @@ aria/
 
 ---
 
-Built in Australia 🇦🇺 · For care workers who deserve better tools.
+Built in New Zealand for support workers and providers across Australia & NZ. For care workers who deserve better tools.

@@ -6,13 +6,25 @@ import { createClient } from "@/lib/supabase/client";
 import AlertDialog from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/toast";
 
-interface OrgData { subscription_tier: string; subscription_status: string; trial_ends_at: string; participant_limit: number; stripe_customer_id: string | null; }
+interface OrgData {
+  subscription_tier: string;
+  subscription_status: string;
+  trial_ends_at: string | null;
+  participant_limit: number;
+  stripe_customer_id: string | null;
+  product_mode?: string | null;
+  billing_country?: string | null;
+  solo_note_limit_override?: number | null;
+}
 
-const PLAN_CONFIG: Record<string, { name: string; price: number; participants: number; color: string }> = {
-  trial:    { name: "Free Trial",  price: 0,   participants: 10, color: "slate" },
-  starter:  { name: "Starter",    price: 149, participants: 10, color: "teal" },
-  growth:   { name: "Growth",     price: 349, participants: 30, color: "blue" },
-  business: { name: "Business",   price: 699, participants: 75, color: "purple" },
+const PLAN_CONFIG: Record<string, { name: string; price: number; participants: number; notes?: number; color: string }> = {
+  trial:     { name: "Free Trial",        price: 0,   participants: 10, color: "slate" },
+  starter:   { name: "Starter",           price: 149, participants: 10, color: "teal" },
+  growth:    { name: "Growth",            price: 349, participants: 30, color: "blue" },
+  business:  { name: "Business",          price: 699, participants: 75, color: "purple" },
+  solo_free: { name: "Free Solo",         price: 0,   participants: 0, notes: 3, color: "slate" },
+  solo:      { name: "Aria Care Solo",    price: 19,  participants: 0, notes: 125, color: "teal" },
+  solo_pro:  { name: "Aria Care Solo Pro",price: 29,  participants: 0, notes: 400, color: "blue" },
 };
 
 function BillingPageInner() {
@@ -22,6 +34,8 @@ function BillingPageInner() {
   const toast = useToast();
   const [org, setOrg] = useState<OrgData | null>(null);
   const [participantCount, setParticipantCount] = useState(0);
+  const [monthlyNoteCount, setMonthlyNoteCount] = useState(0);
+  const [isSoloBilling, setIsSoloBilling] = useState(false);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
   const [upgradeLoading, setUpgradeLoading] = useState("");
@@ -37,11 +51,21 @@ function BillingPageInner() {
         return;
       }
 
-      const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
+      const { data: profile } = await supabase.from("users").select("organisation_id, account_type, solo_usage_reset_at").eq("id", user.id).single();
       const { data: orgData } = await supabase.from("organisations").select("*").eq("id", profile?.organisation_id).single();
       const { count } = await supabase.from("participants").select("*", { count: "exact", head: true }).eq("organisation_id", profile?.organisation_id).eq("status", "active");
+      const soloMode = profile?.account_type === "solo" || orgData?.product_mode === "solo" || orgData?.subscription_tier?.startsWith("solo");
+      const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
+      const countFrom = profile?.solo_usage_reset_at && new Date(profile.solo_usage_reset_at) > new Date(monthStart)
+        ? profile.solo_usage_reset_at
+        : monthStart;
+      const { count: soloNotes } = soloMode
+        ? await supabase.from("solo_notes").select("*", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", countFrom)
+        : { count: 0 };
       setOrg(orgData);
       setParticipantCount(count ?? 0);
+      setMonthlyNoteCount(soloNotes ?? 0);
+      setIsSoloBilling(soloMode);
       setLoading(false);
     })();
   }, []);
@@ -95,8 +119,124 @@ function BillingPageInner() {
   const isTrialing = org?.subscription_tier === "trial";
   const onStripeTrial = org?.subscription_status === "trialing";
   const trialEndDate = org?.trial_ends_at ? new Date(org.trial_ends_at) : null;
-  const usagePct = Math.round((participantCount / currentPlan.participants) * 100);
+  const usagePct = Math.round((participantCount / Math.max(currentPlan.participants, 1)) * 100);
   const nextUsagePlan = org?.subscription_tier === "growth" ? "business" : "growth";
+  const noteLimit = org?.solo_note_limit_override ?? currentPlan.notes ?? 3;
+  const soloUsagePct = Math.round((monthlyNoteCount / Math.max(noteLimit, 1)) * 100);
+
+  if (isSoloBilling) {
+    const country = org?.billing_country === "NZ" ? "NZ" : "AU";
+    const soloPlans = [
+      { key: "solo", name: "Aria Care Solo", price: country === "NZ" ? 21 : 19, currency: country === "NZ" ? "NZ$" : "AU$", notes: 125, features: ["125 notes/month", "Progress notes, handovers and incident drafts", "Saved private history", "Copy into ShiftCare, Lumary, Brevity or any platform"] },
+      { key: "solo_pro", name: "Aria Care Solo Pro", price: country === "NZ" ? 32 : 29, currency: country === "NZ" ? "NZ$" : "AU$", notes: 400, features: ["400 notes/month", "Advanced templates", "Risk and support summaries", "Better history and priority improvements"] },
+    ];
+
+    return (
+      <div className="p-4 sm:p-6 max-w-5xl space-y-6">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-slate-900">Solo Billing</h2>
+          <p className="text-sm text-slate-500 mt-1">Free Solo needs no card. Paid Solo starts with a card-secured 14-day trial.</p>
+        </div>
+
+        {reason === "solo-note-limit" && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-700 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-950">You&apos;ve used your free Solo notes this month</p>
+              <p className="text-sm text-amber-800 mt-1">Upgrade to keep creating structured, copy-ready notes.</p>
+            </div>
+          </div>
+        )}
+
+        {onStripeTrial && trialEndDate && (
+          <div className="rounded-2xl border border-aria-200 bg-aria-50 p-5">
+            <p className="font-semibold text-aria-900">You&apos;re on a Solo trial — {trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"} remaining</p>
+            <p className="text-sm text-aria-800 mt-1">Your first charge will be on <strong>{trialEndDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}</strong>.</p>
+            <button onClick={() => setCancelOpen(true)} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-red-700 hover:text-red-800">
+              <X className="w-3.5 h-3.5" /> Cancel trial
+            </button>
+          </div>
+        )}
+
+        <div className="card p-6">
+          <div className="flex items-start justify-between flex-wrap gap-4">
+            <div>
+              <p className="section-title mb-1">Current Plan</p>
+              <div className="flex items-center gap-3">
+                <p className="font-display text-3xl font-bold text-slate-900">{currentPlan.name}</p>
+                <span className={`badge ${org?.subscription_status === "active" ? "badge-green" : org?.subscription_status === "trialing" ? "badge-teal" : "badge-yellow"}`}>
+                  {org?.subscription_status === "trialing" ? `Trial · ${trialDaysLeft}d left` : org?.subscription_status ?? "active"}
+                </span>
+              </div>
+              {currentPlan.price > 0 && <p className="text-2xl font-bold text-slate-700 mt-1">{country === "NZ" ? "NZ$" : "AU$"}{country === "NZ" && org?.subscription_tier === "solo" ? 21 : country === "NZ" && org?.subscription_tier === "solo_pro" ? 32 : currentPlan.price}<span className="text-sm font-normal text-slate-500">/month</span></p>}
+            </div>
+            {org?.stripe_customer_id && (
+              <button onClick={handlePortal} disabled={portalLoading} className="btn-secondary">
+                {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                Manage billing
+              </button>
+            )}
+          </div>
+
+          <div className="mt-5 pt-5 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-slate-600">Solo notes this month</p>
+              <p className="text-sm font-bold text-slate-900">{monthlyNoteCount} / {noteLimit}</p>
+            </div>
+            <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${soloUsagePct >= 90 ? "bg-red-500" : soloUsagePct >= 70 ? "bg-amber-400" : "bg-aria-500"}`} style={{ width: `${Math.min(soloUsagePct, 100)}%` }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {soloPlans.map(plan => {
+            const isCurrent = org?.subscription_tier === plan.key;
+            return (
+              <div key={plan.key} className={`card p-5 flex flex-col ${isCurrent ? "border-aria-300 bg-aria-50/30" : ""}`}>
+                <p className="font-display font-bold text-slate-900">{plan.name}</p>
+                <p className="font-display text-3xl font-bold text-slate-900 mt-2">{plan.currency}{plan.price}<span className="text-sm font-normal text-slate-500">/mo</span></p>
+                <p className="text-xs text-aria-600 font-semibold mt-1">{plan.notes} notes/month · 14-day trial with card</p>
+                <ul className="space-y-1.5 flex-1 my-4">
+                  {plan.features.map(f => (
+                    <li key={f} className="flex items-center gap-2 text-xs text-slate-600">
+                      <CheckCircle className="w-3.5 h-3.5 text-aria-500 flex-shrink-0" /> {f}
+                    </li>
+                  ))}
+                </ul>
+                {isCurrent ? (
+                  <div className="badge-teal justify-center py-2.5 rounded-xl">Current plan</div>
+                ) : (
+                  <button onClick={() => handleUpgrade(plan.key)} disabled={upgradeLoading === plan.key} className="btn-primary justify-center py-2.5">
+                    {upgradeLoading === plan.key ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Start {plan.name}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="card p-5 bg-slate-50/50">
+          <p className="text-sm text-slate-600">
+            Create in Aria Care, review, then copy into ShiftCare, Lumary, Brevity, CareMaster or whatever your provider uses.
+          </p>
+        </div>
+
+        <AlertDialog
+          open={cancelOpen}
+          destructive
+          loading={cancelling}
+          title="Cancel your Solo trial?"
+          description="Your paid Solo subscription will be cancelled and your account will return to Free Solo. Your saved notes remain available."
+          confirmLabel="Yes, cancel trial"
+          cancelLabel="Keep trial"
+          onConfirm={handleCancelTrial}
+          onCancel={() => setCancelOpen(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-4xl space-y-6">

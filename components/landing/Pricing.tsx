@@ -50,10 +50,41 @@ const PLANS = [
       "Custom report builder",
       "API access",
       "Dedicated account manager",
-      "SLA guarantee",
+      "Dedicated support",
     ],
     cta: "Start free trial",
     popular: false,
+  },
+];
+
+const SOLO_PLANS = [
+  {
+    key: "solo_free",
+    name: "Free Solo",
+    price: 0,
+    desc: "For support workers who want to try copy-ready progress notes without a card.",
+    usage: "3 progress notes/month",
+    features: ["No company setup", "Voice or bullet points", "Copy into ShiftCare or any platform", "Private saved history"],
+    cta: "Start Free Solo",
+  },
+  {
+    key: "solo",
+    name: "Solo",
+    price: 19,
+    desc: "For individual workers writing notes across regular shifts.",
+    usage: "125 notes/month",
+    features: ["Progress notes, handovers and incidents", "Tone/detail options", "Copy variants", "Saved private history"],
+    cta: "Start 14-day trial",
+    popular: true,
+  },
+  {
+    key: "solo_pro",
+    name: "Solo Pro",
+    price: 29,
+    desc: "For heavier users who want more room and advanced templates.",
+    usage: "400 notes/month",
+    features: ["Advanced templates", "Risk and support summaries", "More history room", "Priority improvements"],
+    cta: "Start Pro trial",
   },
 ];
 
@@ -64,13 +95,64 @@ export default function Pricing() {
         <div className="text-center max-w-2xl mx-auto mb-16">
           <p className="section-title mb-3">Pricing</p>
           <h2 className="font-display text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-            Priced by participants,
+            Start solo,
             <br />
-            <span className="text-gradient-teal">not per seat.</span>
+            <span className="text-gradient-teal">scale to teams.</span>
           </h2>
           <p className="text-slate-600 text-lg">
-            Because that&apos;s how NDIS providers think. One filled cohort pays for Aria for 2 years.
+            Individual support workers can use Aria Care today. Providers can upgrade to shared workflows when the team is ready.
           </p>
+        </div>
+
+        <div className="mb-16">
+          <div className="flex items-end justify-between gap-4 flex-wrap mb-5">
+            <div>
+              <p className="section-title mb-2">Aria Care Solo</p>
+              <h3 className="font-display text-2xl font-bold text-slate-900">For individual support workers</h3>
+            </div>
+            <p className="text-sm text-slate-500 max-w-md">Create in Aria Care. Copy into ShiftCare, Lumary, Brevity or whatever your provider uses.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {SOLO_PLANS.map((plan) => (
+              <div key={plan.key} className={`relative rounded-2xl p-7 flex flex-col ${plan.popular ? "bg-slate-900 text-white border border-slate-800 shadow-xl" : "card"}`}>
+                {plan.popular && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                    <span className="bg-aria-gradient text-white text-xs font-bold px-4 py-1 rounded-full flex items-center gap-1">
+                      <Zap className="w-3 h-3" /> Best Value
+                    </span>
+                  </div>
+                )}
+                <div className="mb-5">
+                  <p className={`text-sm font-bold mb-1 ${plan.popular ? "text-aria-300" : "text-aria-600"}`}>{plan.name}</p>
+                  <div className="flex items-end gap-1 mb-2">
+                    <span className={`font-display text-5xl font-bold ${plan.popular ? "text-white" : "text-slate-900"}`}>${plan.price}</span>
+                    <span className={`mb-2 text-sm ${plan.popular ? "text-slate-400" : "text-slate-500"}`}>/month</span>
+                  </div>
+                  <p className={`text-xs font-semibold mb-2 ${plan.popular ? "text-aria-300" : "text-aria-600"}`}>{plan.usage}</p>
+                  <p className={`text-sm leading-relaxed ${plan.popular ? "text-slate-400" : "text-slate-600"}`}>{plan.desc}</p>
+                </div>
+                <ul className="space-y-2.5 flex-1 mb-6">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm">
+                      <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${plan.popular ? "text-aria-400" : "text-aria-500"}`} />
+                      <span className={plan.popular ? "text-slate-300" : "text-slate-600"}>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link href={`/signup?plan=${plan.key}`} className={`block text-center py-3 rounded-xl font-semibold text-sm transition-all ${plan.popular ? "bg-aria-500 hover:bg-aria-400 text-white shadow-teal" : "btn-secondary justify-center"}`}>
+                  {plan.cta}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between gap-4 flex-wrap mb-5">
+          <div>
+            <p className="section-title mb-2">Aria Care Provider</p>
+            <h3 className="font-display text-2xl font-bold text-slate-900">For providers, SIL teams and coordinators</h3>
+          </div>
+          <p className="text-sm text-slate-500 max-w-md">If multiple workers are already using Aria Care, move to a team plan for shared workflows, admin review and reporting.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -126,11 +208,11 @@ export default function Pricing() {
 
         <div className="mt-8 text-center">
           <p className="text-sm text-slate-500">
-            All plans include a 14-day free trial · Card required to activate · Cancel anytime before renewal
+            Free Solo needs no card · Paid Solo and Provider plans include card-secured 14-day trials · Cancel anytime before renewal
           </p>
           <p className="text-sm text-slate-500 mt-1">
             Need more than 75 participants?{" "}
-            <a href="mailto:hello@aria.care" className="text-aria-600 font-semibold hover:underline">
+            <a href="mailto:support@ariacare.app" className="text-aria-600 font-semibold hover:underline">
               Talk to us about Enterprise →
             </a>
           </p>

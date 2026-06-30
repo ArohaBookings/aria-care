@@ -1,6 +1,6 @@
 import { createAdminSupabase } from "@/lib/supabase/admin";
 
-const PLAN_PRICES: Record<string, number> = { starter: 149, growth: 349, business: 699 };
+const PLAN_PRICES: Record<string, number> = { starter: 149, growth: 349, business: 699, solo: 19, solo_pro: 29 };
 
 export default async function AdminRevenuePage() {
   const sb = createAdminSupabase();
@@ -32,7 +32,7 @@ export default async function AdminRevenuePage() {
     if (key in months) months[key]++;
   });
 
-  const planDist = ["starter", "growth", "business"].map(p => ({
+  const planDist = ["solo", "solo_pro", "starter", "growth", "business"].map(p => ({
     plan: p, count: active.filter(o => o.subscription_tier === p).length,
     revenue: active.filter(o => o.subscription_tier === p).length * (PLAN_PRICES[p] ?? 0),
   }));
@@ -71,7 +71,7 @@ export default async function AdminRevenuePage() {
               <div className="w-20 text-xs font-semibold text-slate-400 capitalize">{plan}</div>
               <div className="flex-1 h-8 bg-slate-800 rounded-lg overflow-hidden relative">
                 <div
-                  className={`h-full rounded-lg transition-all ${plan === "business" ? "bg-purple-600" : plan === "growth" ? "bg-blue-600" : "bg-teal-600"}`}
+                  className={`h-full rounded-lg transition-all ${plan === "business" ? "bg-purple-600" : plan === "growth" ? "bg-blue-600" : plan === "solo_pro" ? "bg-emerald-600" : plan === "solo" ? "bg-cyan-600" : "bg-teal-600"}`}
                   style={{ width: mrr > 0 ? `${Math.max((revenue / mrr) * 100, 2)}%` : "2%" }}
                 />
                 <div className="absolute inset-0 flex items-center px-3">

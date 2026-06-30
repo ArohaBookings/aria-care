@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       .eq("organisation_id", org.id)
       .eq("subject", subject)
       .eq("status", "sent")
-      .gte("created_at", cutoff)
+      .gte("sent_at", cutoff)
       .limit(1);
 
     if ((sentRecently?.length ?? 0) > 0) {

@@ -16,22 +16,24 @@ export async function POST() {
 
     const { data: profile } = await supabase
       .from("users")
-      .select("organisation_id, role")
+      .select("organisation_id, role, account_type")
       .eq("id", user.id)
       .single();
 
     if (!profile?.organisation_id) {
       return NextResponse.json({ error: "No organisation" }, { status: 400 });
     }
-    if (!["owner", "coordinator"].includes(profile.role ?? "")) {
-      return NextResponse.json({ error: "Only owners and coordinators can cancel the subscription." }, { status: 403 });
-    }
 
     const { data: org } = await supabase
       .from("organisations")
-      .select("stripe_subscription_id, subscription_status")
+      .select("stripe_subscription_id, subscription_status, subscription_tier, product_mode")
       .eq("id", profile.organisation_id)
       .single();
+
+    const isSolo = profile.account_type === "solo" || org?.product_mode === "solo" || org?.subscription_tier?.startsWith("solo");
+    if (!isSolo && !["owner", "coordinator"].includes(profile.role ?? "")) {
+      return NextResponse.json({ error: "Only owners and coordinators can cancel the subscription." }, { status: 403 });
+    }
 
     if (!org?.stripe_subscription_id) {
       return NextResponse.json({ error: "No active subscription to cancel." }, { status: 400 });
@@ -45,8 +47,8 @@ export async function POST() {
       .from("organisations")
       .update({
         subscription_status: "cancelled",
-        subscription_tier: "trial",
-        participant_limit: 10,
+        subscription_tier: isSolo ? "solo_free" : "trial",
+        participant_limit: isSolo ? 0 : 10,
         stripe_subscription_id: null,
       })
       .eq("id", profile.organisation_id);
