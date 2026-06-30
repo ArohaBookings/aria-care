@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, JetBrains_Mono, Nunito_Sans } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
@@ -22,6 +22,10 @@ const monoFont = JetBrains_Mono({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#0d9488",
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.ariacare.app"),
   title: {
@@ -29,7 +33,9 @@ export const metadata: Metadata = {
     template: "%s | Aria Care",
   },
   description: "Turn voice notes and bullet points into structured, review-ready support note drafts workers can copy into ShiftCare, Lumary, Brevity or provider systems.",
-  icons: { icon: "/favicon.svg" },
+  icons: { icon: "/favicon.svg", apple: "/icon.svg" },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Aria Care", statusBarStyle: "default" },
   keywords: [
     "AI progress notes",
     "support worker notes",

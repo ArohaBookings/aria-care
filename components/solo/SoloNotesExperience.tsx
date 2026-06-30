@@ -35,6 +35,7 @@ import {
   copyTextWithFallback,
 } from "@/components/notes/NoteIntelligencePanels";
 import { buildAdaptiveDebriefQuestions } from "@/lib/notes/intelligence";
+import PwaInstaller from "@/components/pwa/PwaInstaller";
 
 type RecordingState = "idle" | "recording" | "processing" | "done" | "error";
 type NoteType = "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly" | "dot_point" | "coordinator_summary" | "daily_snapshot";
@@ -921,6 +922,8 @@ export default function SoloNotesExperience() {
           </div>
         </div>
       </div>
+
+      <PwaInstaller />
 
       {soloState.trial?.active && (
         <div className={`rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 ${soloState.trial.daysLeft <= 3 ? "border-amber-200 bg-amber-50" : "border-aria-200 bg-aria-50"}`}>
