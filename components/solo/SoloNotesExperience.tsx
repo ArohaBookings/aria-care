@@ -10,6 +10,7 @@ import {
   Copy,
   FileText,
   Heart,
+  Languages,
   Loader2,
   Mic,
   PenLine,
@@ -295,6 +296,12 @@ const SIGNOFF_STATUS_OPTIONS: Array<{ key: string; label: string }> = [
   { key: "not_applicable", label: "Not applicable" },
 ];
 
+const PARTICIPANT_LANGUAGES = [
+  "Arabic", "Vietnamese", "Mandarin (Simplified Chinese)", "Cantonese", "Greek", "Italian",
+  "Punjabi", "Hindi", "Spanish", "Filipino (Tagalog)", "Korean", "Samoan", "Tongan", "Te Reo Māori",
+  "Dari", "Farsi (Persian)", "Turkish", "Nepali", "Auslan gloss (plain English)",
+];
+
 const LINK_ROLE_OPTIONS: Array<{ key: string; label: string }> = [
   { key: "support_coordinator", label: "Support coordinator" },
   { key: "team_leader", label: "Team leader" },
@@ -379,6 +386,10 @@ export default function SoloNotesExperience() {
   const [monthlyMonth, setMonthlyMonth] = useState("");
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyError, setMonthlyError] = useState("");
+  const [accessibleText, setAccessibleText] = useState("");
+  const [accessibleLang, setAccessibleLang] = useState("Arabic");
+  const [accessibleLoading, setAccessibleLoading] = useState(false);
+  const [accessibleError, setAccessibleError] = useState("");
   const { speakingId, speak } = useReadAloud();
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
@@ -473,6 +484,8 @@ export default function SoloNotesExperience() {
     setSignoff(currentNote.signoff ?? {});
     setActiveView("worker");
     setSignoffSaved(false);
+    setAccessibleText("");
+    setAccessibleError("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentNote?.id]);
 
@@ -779,6 +792,30 @@ export default function SoloNotesExperience() {
       setMonthlyError(friendlyError(e, "Could not generate the monthly summary. Please retry."));
     } finally {
       setMonthlyLoading(false);
+    }
+  };
+
+  const generateAccessibleVersion = async (mode: "translate" | "easy_read") => {
+    if (!participantDraft.trim()) {
+      setAccessibleError("Generate or add a participant-friendly summary first.");
+      return;
+    }
+    setAccessibleLoading(true);
+    setAccessibleError("");
+    setAccessibleText("");
+    try {
+      const res = await fetch("/api/solo/participant-version", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: participantDraft, mode, language: mode === "easy_read" ? "English" : accessibleLang }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not create the accessible version");
+      setAccessibleText(data.text);
+    } catch (e) {
+      setAccessibleError(friendlyError(e, "Could not create the accessible version. Please retry."));
+    } finally {
+      setAccessibleLoading(false);
     }
   };
 
@@ -1294,6 +1331,29 @@ export default function SoloNotesExperience() {
                     </button>
                   </div>
                   <p className="mt-2 text-[11px] text-slate-500">Check it is accurate and suitable to share before reading it with the participant.</p>
+
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5"><Languages className="w-3.5 h-3.5 text-aria-600" /> Make it accessible</p>
+                    <p className="text-[11px] text-slate-500 mb-2">Translate for the participant&apos;s first language, or make an Easy Read version. Draft only — review before sharing.</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select value={accessibleLang} onChange={(e) => setAccessibleLang(e.target.value)} className="input text-xs py-1.5 max-w-[13rem]">
+                        {PARTICIPANT_LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                      <button onClick={() => generateAccessibleVersion("translate")} disabled={accessibleLoading} className="btn-secondary text-xs disabled:opacity-50">Translate</button>
+                      <button onClick={() => generateAccessibleVersion("easy_read")} disabled={accessibleLoading} className="btn-secondary text-xs disabled:opacity-50">Easy Read</button>
+                      {accessibleLoading && <Loader2 className="w-4 h-4 animate-spin text-aria-500" />}
+                    </div>
+                    {accessibleError && <p className="mt-2 text-xs text-red-600">{accessibleError}</p>}
+                    {accessibleText && (
+                      <div className="mt-3">
+                        <textarea readOnly value={accessibleText} rows={6} dir="auto" className="input resize-y text-sm leading-relaxed whitespace-pre-wrap bg-white" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                          <ReadAloudButton id={`accessible-${currentNote.id}`} text={accessibleText} speakingId={speakingId} onToggle={speak} />
+                          <button onClick={() => copyText("accessible summary", accessibleText)} className="btn-secondary justify-center text-xs"><Copy className="w-4 h-4" /> Copy</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

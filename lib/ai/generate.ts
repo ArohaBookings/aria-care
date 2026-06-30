@@ -8,6 +8,7 @@ import {
   HANDOVER_NOTE_PROMPT,
   SOLO_NOTE_PROMPT,
   MONTHLY_SUMMARY_PROMPT,
+  PARTICIPANT_VERSION_PROMPT,
 } from "./prompts";
 import { buildFallbackProgressNote, buildFallbackSoloNote } from "@/lib/notes/fallbacks";
 
@@ -452,5 +453,28 @@ Review the month's notes manually before sharing.`,
       noteCount: args.notes.length,
       reviewReminder: DRAFT_ONLY_REMINDER,
     };
+  }
+}
+
+// ============================================================
+// PARTICIPANT VERSION — translate or Easy-Read a participant summary
+// ============================================================
+export async function generateParticipantVersion(args: {
+  text: string;
+  mode: "translate" | "easy_read";
+  language?: string;
+}): Promise<{ text: string }> {
+  const userContent = `MODE: ${args.mode}
+TARGET LANGUAGE: ${args.language || "English"}
+
+SOURCE PARTICIPANT-FRIENDLY SUMMARY:
+${args.text}`;
+  try {
+    const raw = await callAI(PARTICIPANT_VERSION_PROMPT, userContent);
+    const parsed = parseJSON<{ text: string }>(raw);
+    return { text: (parsed.text || "").trim() };
+  } catch (error) {
+    console.error("[ai] Participant version fallback:", error);
+    return { text: "" };
   }
 }
