@@ -72,13 +72,17 @@ export function buildFallbackSoloNote(args: {
       ? "No incidents, injuries, risks, or concerns were reported in the worker input."
       : "Not specified. Do not add no-incident wording unless confirmed.";
 
-  const noteTitle = args.noteType === "handover"
-    ? "Handover Note"
-    : args.noteType === "incident" || args.noteType === "risk"
-      ? "Incident / Risk Note"
-      : args.noteType === "support_summary"
-        ? "Support Summary"
-        : "Progress Note";
+  const NOTE_TITLES: Record<string, string> = {
+    handover: "Handover Note",
+    incident: "Incident / Risk Note",
+    risk: "Incident / Risk Note",
+    support_summary: "Support Summary",
+    participant_friendly: "Participant-friendly summary",
+    dot_point: "Dot-point note",
+    coordinator_summary: "Coordinator summary",
+    daily_snapshot: "Daily snapshot",
+  };
+  const noteTitle = NOTE_TITLES[args.noteType ?? ""] ?? "Progress Note";
 
   const noteText = `${noteTitle}
 
@@ -126,7 +130,7 @@ Draft only — review and edit before sharing.`;
     handoverSummary: section.followUp || "",
     incidentSummary: section.risks || (hasNoIncidentStatement(args.input) ? "No incidents were reported in the worker input." : ""),
     participantSummary,
-    noteType: (args.noteType || "progress") as "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly",
+    noteType: (args.noteType || "progress") as "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly" | "dot_point" | "coordinator_summary" | "daily_snapshot",
     riskFlagged: /incident|risk|injur|concern|unsafe|escalat/i.test(`${args.input} ${section.risks}`) && !hasNoIncidentStatement(args.input),
     reviewReminder: guardian.length
       ? "Fallback draft created. Please review the highlighted quality suggestions before submitting."

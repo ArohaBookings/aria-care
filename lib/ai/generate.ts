@@ -15,20 +15,54 @@ import { buildFallbackProgressNote, buildFallbackSoloNote } from "@/lib/notes/fa
 // Swap or extend here without touching any other file
 // ============================================================
 
+// Primary model is GPT-5.5 (best document quality); override with OPENAI_MODEL.
+// gpt-4o is the in-OpenAI fallback, then Anthropic Claude. The chain means a
+// model/param mismatch can never hard-break note generation.
+const OPENAI_PRIMARY_MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.5";
+const OPENAI_FALLBACK_MODEL = "gpt-4o";
+
+// GPT-5 / o-series use `max_completion_tokens` and reject custom temperature;
+// older chat models use `max_tokens`.
+function isNextGenOpenAIModel(model: string) {
+  return /^gpt-5/i.test(model) || /^o[0-9]/i.test(model);
+}
+
+async function callOpenAIModel(client: OpenAI, model: string, systemPrompt: string, userContent: string): Promise<string> {
+  const params: Record<string, unknown> = {
+    model,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+  };
+  if (isNextGenOpenAIModel(model)) {
+    params.max_completion_tokens = 4000;
+  } else {
+    params.max_tokens = 3000;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = await client.chat.completions.create(params as any);
+  return res.choices[0]?.message?.content ?? "";
+}
+
 async function callAI(systemPrompt: string, userContent: string): Promise<string> {
-  // Try OpenAI first
+  // Try OpenAI first (GPT-5.5 → gpt-4o)
   if (process.env.OPENAI_API_KEY) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const res = await client.chat.completions.create({
-      model: "gpt-4o",
-      max_tokens: 3000,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
-      ],
-    });
-    return res.choices[0]?.message?.content ?? "";
+    try {
+      return await callOpenAIModel(client, OPENAI_PRIMARY_MODEL, systemPrompt, userContent);
+    } catch (primaryError) {
+      console.error(`[ai] ${OPENAI_PRIMARY_MODEL} failed, falling back to ${OPENAI_FALLBACK_MODEL}:`, primaryError);
+      if (OPENAI_PRIMARY_MODEL !== OPENAI_FALLBACK_MODEL) {
+        try {
+          return await callOpenAIModel(client, OPENAI_FALLBACK_MODEL, systemPrompt, userContent);
+        } catch (fallbackError) {
+          console.error(`[ai] ${OPENAI_FALLBACK_MODEL} fallback failed:`, fallbackError);
+          // fall through to Anthropic
+        }
+      }
+    }
   }
 
   // Fallback to Anthropic Claude
@@ -309,7 +343,7 @@ export interface SoloNoteResult {
   handoverSummary: string;
   incidentSummary: string;
   participantSummary: string;
-  noteType: "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly";
+  noteType: "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly" | "dot_point" | "coordinator_summary" | "daily_snapshot";
   riskFlagged: boolean;
   reviewReminder: string;
   fallbackUsed?: boolean;

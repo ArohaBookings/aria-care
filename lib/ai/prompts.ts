@@ -198,6 +198,32 @@ Participant-friendly summary
 PARTICIPANT-FRIENDLY SUMMARY (always include a participantSummary):
 Always also produce participantSummary: a short, plain-language version of this shift suitable to read WITH the participant or carer. Use "you"/"we", keep it warm and factual, and avoid clinical terms, diagnosis language, judgement, and risk-coding. If the note type is participant_friendly, noteText and participantSummary may carry the same plain-language content. Keep participantSummary to a few short sentences or simple points. If there is genuinely nothing suitable to share, return a brief neutral summary of the visit rather than inventing detail.
 
+For dot-point notes (note type dot_point), do NOT write paragraphs. Return short, clear, factual bullet points that are easy to paste, one fact per line:
+Dot-point note
+
+- Each line is a single clear fact from the shift (support given, presentation, prompts, follow-up).
+- No filler, no padding, no invented detail. Group incidents/risks on their own lines.
+
+For coordinator summaries (note type coordinator_summary), write a short, sharp overview a support coordinator can scan in seconds:
+Coordinator summary
+
+What happened:
+Support needs:
+Barriers:
+Risks:
+Changes:
+Follow-up:
+Keep each line to a phrase. Omit a line if there is genuinely nothing to report for it.
+
+For daily snapshots (note type daily_snapshot), write a very short summary of where the participant is at today, useful for shared information between workers:
+Daily snapshot
+
+Mood/presentation:
+Key activities/support:
+Concerns:
+What the next worker should know:
+Keep it to a few short lines. Do not pad.
+
 FORMAT OPTIONS:
 - Default output format is Structured headings.
 - If OUTPUT FORMAT is Short version, make the note shorter while preserving key facts.
@@ -231,7 +257,7 @@ Return valid JSON only:
   "handoverSummary": "Brief handover summary if useful, otherwise empty string",
   "incidentSummary": "Brief incident/risk summary if relevant, otherwise empty string",
   "participantSummary": "Short plain-language version to read with the participant/carer (you/we, warm, factual, no clinical or judgemental wording)",
-  "noteType": "progress | incident | handover | risk | support_summary | participant_friendly",
+  "noteType": "progress | incident | handover | risk | support_summary | participant_friendly | dot_point | coordinator_summary | daily_snapshot",
   "riskFlagged": false,
   "reviewReminder": "Aria creates drafts only. Always review and edit before submitting to your workplace system."
 }`;

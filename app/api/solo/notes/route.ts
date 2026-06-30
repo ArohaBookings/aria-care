@@ -11,7 +11,7 @@ import {
 
 export const maxDuration = 60;
 
-const SOLO_NOTE_TYPES = new Set(["progress", "incident", "handover", "risk", "support_summary", "participant_friendly"]);
+const SOLO_NOTE_TYPES = new Set(["progress", "incident", "handover", "risk", "support_summary", "participant_friendly", "dot_point", "coordinator_summary", "daily_snapshot"]);
 const FREE_NOTE_TYPES = new Set(["progress"]);
 const SIGNOFF_STATUSES = new Set(["confirmed", "declined", "not_applicable", ""]);
 const PUBLIC_ERROR_PATTERNS = [

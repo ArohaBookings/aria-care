@@ -35,7 +35,7 @@ import {
 import { buildAdaptiveDebriefQuestions } from "@/lib/notes/intelligence";
 
 type RecordingState = "idle" | "recording" | "processing" | "done" | "error";
-type NoteType = "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly";
+type NoteType = "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly" | "dot_point" | "coordinator_summary" | "daily_snapshot";
 type DetailLevel = "concise" | "balanced" | "detailed";
 type InputMode = "voice" | "text" | "multi";
 type FormattingMode = "structured" | "short" | "detailed" | "handover_only" | "incident_summary" | "plain" | "paragraph" | "bullets";
@@ -81,11 +81,14 @@ interface SoloState {
 
 const NOTE_TYPES: Array<{ key: NoteType; label: string; free?: boolean }> = [
   { key: "progress", label: "Progress note", free: true },
-  { key: "incident", label: "Incident note" },
+  { key: "dot_point", label: "Dot-point note" },
   { key: "handover", label: "Handover" },
+  { key: "incident", label: "Incident note" },
   { key: "risk", label: "Risk concern" },
-  { key: "support_summary", label: "Support summary" },
   { key: "participant_friendly", label: "Participant-friendly" },
+  { key: "coordinator_summary", label: "Coordinator summary" },
+  { key: "daily_snapshot", label: "Daily snapshot" },
+  { key: "support_summary", label: "Support summary" },
 ];
 
 const FORMAT_LABELS: Record<FormattingMode, string> = {
@@ -840,7 +843,7 @@ export default function SoloNotesExperience() {
 
             <div className="space-y-4">
               <div>
-                <label className="label">Note type</label>
+                <label className="label">What do you need?</label>
                 <div className="grid grid-cols-2 gap-2">
                   {NOTE_TYPES.map((type) => (
                     <button
