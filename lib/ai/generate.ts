@@ -42,7 +42,6 @@ async function callOpenAIModel(client: OpenAI, model: string, systemPrompt: stri
   } else {
     params.max_tokens = 3000;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const res = await client.chat.completions.create(params as any);
   return res.choices[0]?.message?.content ?? "";
 }

@@ -5,7 +5,6 @@ import { rateLimit, rlKey } from "@/lib/security";
 
 export const maxDuration = 60;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isSoloProfile(profile: any) {
   const rawOrg = profile?.organisations;
   const org = Array.isArray(rawOrg) ? rawOrg[0] : rawOrg;
