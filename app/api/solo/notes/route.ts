@@ -6,7 +6,9 @@ import { sanitizeUserInput } from "@/lib/security";
 import {
   nextSoloPaidPlan,
   normalizeSoloPlan,
-  soloMonthlyNoteLimit,
+  effectiveSoloLimit,
+  isSoloTrialActive,
+  soloTrialDaysLeft,
 } from "@/lib/usage-limits";
 
 export const maxDuration = 60;
@@ -47,7 +49,7 @@ function publicErrorMessage(error: unknown, fallback: string) {
 async function getSoloState(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: profile, error } = await supabase
     .from("users")
-    .select("organisation_id, email, full_name, account_type, onboarding_profile, solo_usage_reset_at, organisations(subscription_tier, product_mode, billing_country, solo_note_limit_override, solo_platform)")
+    .select("organisation_id, email, full_name, account_type, onboarding_profile, solo_usage_reset_at, organisations(subscription_tier, product_mode, billing_country, solo_note_limit_override, solo_platform, created_at)")
     .eq("id", userId)
     .single();
 
@@ -65,9 +67,12 @@ async function getSoloState(supabase: Awaited<ReturnType<typeof createClient>>, 
     billing_country?: string;
     solo_note_limit_override?: number | null;
     solo_platform?: string | null;
+    created_at?: string | null;
   } | null;
   const plan = normalizeSoloPlan(org?.subscription_tier);
-  const limit = soloMonthlyNoteLimit(plan, org?.solo_note_limit_override ?? null);
+  const trialActive = isSoloTrialActive(plan, org?.created_at ?? null);
+  const trialDaysLeft = soloTrialDaysLeft(org?.created_at ?? null);
+  const limit = effectiveSoloLimit(plan, org?.created_at ?? null, org?.solo_note_limit_override ?? null);
 
   const countFrom = profile.solo_usage_reset_at && new Date(profile.solo_usage_reset_at) > new Date(monthStartIso())
     ? profile.solo_usage_reset_at
@@ -86,6 +91,8 @@ async function getSoloState(supabase: Awaited<ReturnType<typeof createClient>>, 
     plan,
     limit,
     used: count ?? 0,
+    trialActive,
+    trialDaysLeft,
   };
 }
 
@@ -118,6 +125,7 @@ export async function GET() {
         limit: state.limit,
         remaining: Math.max(state.limit - state.used, 0),
       },
+      trial: { active: state.trialActive ?? false, daysLeft: state.trialDaysLeft ?? 0 },
       notes: notes ?? [],
     });
   } catch (error) {
@@ -167,7 +175,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid note type" }, { status: 400 });
     }
 
-    if (state.plan === "solo_free" && !FREE_NOTE_TYPES.has(noteType)) {
+    if (state.plan === "solo_free" && !state.trialActive && !FREE_NOTE_TYPES.has(noteType)) {
       return NextResponse.json(
         {
           error: "Free Solo includes basic progress notes. Upgrade to create incident, handover, risk, and support summary drafts.",

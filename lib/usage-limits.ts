@@ -110,3 +110,28 @@ export function soloMonthlyNoteLimit(plan?: string | null, override?: number | n
 export function isPaidSoloPlan(plan?: string | null) {
   return normalizeSoloPlan(plan) !== "solo_free";
 }
+
+// ── Free Solo onboarding trial ──────────────────────────────────────────────
+// New Free Solo users get unlimited notes (no card) for their first N days, then
+// drop to the standard Free monthly limit. Bump SOLO_TRIAL_DAYS to 30 to beat
+// Clio Care's 30-day free run.
+export const SOLO_TRIAL_DAYS = 14;
+export const SOLO_TRIAL_NOTE_LIMIT = 500; // effectively unlimited for a 14-day trial; caps runaway AI cost
+
+export function soloTrialDaysLeft(orgCreatedAt?: string | null): number {
+  if (!orgCreatedAt) return 0;
+  const created = new Date(orgCreatedAt).getTime();
+  if (Number.isNaN(created)) return 0;
+  const elapsedDays = (Date.now() - created) / 86400000;
+  return Math.max(0, Math.ceil(SOLO_TRIAL_DAYS - elapsedDays));
+}
+
+// Trial applies only to Free Solo within the window. Paid solo plans don't need it.
+export function isSoloTrialActive(plan?: string | null, orgCreatedAt?: string | null): boolean {
+  return normalizeSoloPlan(plan) === "solo_free" && soloTrialDaysLeft(orgCreatedAt) > 0;
+}
+
+export function effectiveSoloLimit(plan?: string | null, orgCreatedAt?: string | null, override?: number | null): number {
+  if (isSoloTrialActive(plan, orgCreatedAt)) return SOLO_TRIAL_NOTE_LIMIT;
+  return soloMonthlyNoteLimit(plan, override);
+}

@@ -93,9 +93,10 @@ export default async function CoordinatorPage() {
             <div key={participant.id} className="card p-5 break-inside-avoid">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Link href={`/participants/${participant.id}`} className="font-display font-bold text-slate-900 hover:text-aria-700">{participant.full_name}</Link>
                     {participant.support_category && <span className="badge text-[10px] bg-slate-100 text-slate-500">{participant.support_category}</span>}
+                    <Link href={`/report/participant/${participant.id}`} target="_blank" className="text-[11px] font-bold text-aria-700 hover:underline">Audit report &rarr;</Link>
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
                     <CalendarClock className="w-3.5 h-3.5" />

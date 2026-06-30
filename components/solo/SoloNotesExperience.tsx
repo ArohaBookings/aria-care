@@ -83,6 +83,7 @@ interface SoloState {
   country: string;
   platform: string | null;
   usage: { used: number; limit: number; remaining: number };
+  trial?: { active: boolean; daysLeft: number };
   notes: SoloNote[];
 }
 
@@ -477,7 +478,8 @@ export default function SoloNotesExperience() {
 
   const atLimit = !!soloState && soloState.usage.remaining <= 0;
   const oneLeft = !!soloState && soloState.plan === "solo_free" && soloState.usage.remaining === 1;
-  const freeTypeBlocked = soloState?.plan === "solo_free" && noteType !== "progress";
+  const soloFreeRestricted = soloState?.plan === "solo_free" && !soloState?.trial?.active;
+  const freeTypeBlocked = soloFreeRestricted && noteType !== "progress";
   const debriefInput = inputMode === "voice" ? transcript || textInput : textInput || transcript;
   const multiClientSegments = inputMode === "multi" ? splitMultiClientDay(textInput) : [];
   const debriefQuestions = buildAdaptiveDebriefQuestions(
@@ -861,12 +863,34 @@ export default function SoloNotesExperience() {
             </p>
           </div>
           <div className="rounded-2xl bg-white/10 border border-white/10 p-4 min-w-48">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Usage this month</p>
-            <p className="font-display text-3xl font-bold mt-1">{soloState.usage.used}/{soloState.usage.limit}</p>
-            <p className="text-xs text-teal-100">{planName(soloState.plan)} · {soloState.usage.remaining} left</p>
+            {soloState.trial?.active ? (
+              <>
+                <p className="text-xs uppercase tracking-wide text-teal-200">Free trial</p>
+                <p className="font-display text-3xl font-bold mt-1">Unlimited</p>
+                <p className="text-xs text-teal-100">{soloState.trial.daysLeft} day{soloState.trial.daysLeft === 1 ? "" : "s"} left · no card needed</p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs uppercase tracking-wide text-slate-400">Usage this month</p>
+                <p className="font-display text-3xl font-bold mt-1">{soloState.usage.used}/{soloState.usage.limit}</p>
+                <p className="text-xs text-teal-100">{planName(soloState.plan)} · {soloState.usage.remaining} left</p>
+              </>
+            )}
           </div>
         </div>
       </div>
+
+      {soloState.trial?.active && (
+        <div className={`rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 ${soloState.trial.daysLeft <= 3 ? "border-amber-200 bg-amber-50" : "border-aria-200 bg-aria-50"}`}>
+          <p className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4 text-aria-600" />
+            {soloState.trial.daysLeft <= 3
+              ? `Your free trial ends in ${soloState.trial.daysLeft} day${soloState.trial.daysLeft === 1 ? "" : "s"} — upgrade to keep creating notes without limits.`
+              : `You're on your free trial — unlimited notes, no card needed. ${soloState.trial.daysLeft} days left.`}
+          </p>
+          <Link href="/billing?reason=solo-trial" className="text-xs font-bold text-aria-700 hover:underline whitespace-nowrap">View Solo plans</Link>
+        </div>
+      )}
 
       {oneLeft && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -906,7 +930,7 @@ export default function SoloNotesExperience() {
                       key={type.key}
                       onClick={() => {
                         setNoteType(type.key);
-                        if (soloState.plan === "solo_free" && !type.free) {
+                        if (soloFreeRestricted && !type.free) {
                           setError("Free Solo includes basic progress notes. Upgrade when you need incident, handover, risk or support summary drafts.");
                         } else {
                           setError("");
@@ -914,10 +938,10 @@ export default function SoloNotesExperience() {
                       }}
                       className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-all ${
                         noteType === type.key ? "border-aria-300 bg-aria-50 text-aria-800" : "border-slate-200 text-slate-600 hover:border-slate-300"
-                      } ${soloState.plan === "solo_free" && !type.free ? "opacity-60" : ""}`}
+                      } ${soloFreeRestricted && !type.free ? "opacity-60" : ""}`}
                     >
                       {type.label}
-                      {soloState.plan === "solo_free" && !type.free && <span className="block text-[10px] text-slate-400">Paid</span>}
+                      {soloFreeRestricted && !type.free && <span className="block text-[10px] text-slate-400">Paid</span>}
                     </button>
                   ))}
                 </div>
