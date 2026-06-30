@@ -24,7 +24,7 @@ export default function Navbar() {
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
-          {[["Progress Notes", "/progress-notes"], ["ROI", "/#roi"], ["Pricing", "/#pricing"], ["About", "/about"], ["Support", "/support"]].map(([label, href]) => (
+          {[["Progress Notes", "/progress-notes"], ["Why Aria", "/#why-not-chatgpt"], ["ROI", "/#roi"], ["Pricing", "/#pricing"], ["About", "/about"], ["Support", "/support"]].map(([label, href]) => (
             <Link key={label} href={href} className="text-sm text-slate-600 hover:text-slate-900 transition-colors font-medium">{label}</Link>
           ))}
         </div>
@@ -41,7 +41,7 @@ export default function Navbar() {
 
       {open && (
         <div className="md:hidden bg-white border-t border-slate-100 px-6 py-4 space-y-3">
-          {[["Progress Notes", "/progress-notes"], ["ROI", "/#roi"], ["Pricing", "/#pricing"], ["About", "/about"], ["Support", "/support"]].map(([label, href]) => (
+          {[["Progress Notes", "/progress-notes"], ["Why Aria", "/#why-not-chatgpt"], ["ROI", "/#roi"], ["Pricing", "/#pricing"], ["About", "/about"], ["Support", "/support"]].map(([label, href]) => (
             <Link key={label} href={href} className="block text-sm text-slate-600 py-2" onClick={() => setOpen(false)}>{label}</Link>
           ))}
           <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">

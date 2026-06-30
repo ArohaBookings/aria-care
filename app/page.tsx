@@ -3,6 +3,7 @@ import Hero from "@/components/landing/Hero";
 import SocialProof from "@/components/landing/SocialProof";
 import AudienceSections from "@/components/landing/AudienceSections";
 import Features from "@/components/landing/Features";
+import WhyNotChatGPT from "@/components/landing/WhyNotChatGPT";
 import IntelligenceLayer from "@/components/landing/IntelligenceLayer";
 import HowItWorks from "@/components/landing/HowItWorks";
 import ROICalculator from "@/components/landing/ROICalculator";
@@ -35,6 +36,7 @@ export default function LandingPage() {
         <AudienceSections />
         <IntelligenceLayer />
         <Features />
+        <WhyNotChatGPT />
         <ROICalculator />
         <HowItWorks />
         <Pricing />
