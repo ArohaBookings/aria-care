@@ -308,7 +308,8 @@ export interface SoloNoteResult {
   shortText: string;
   handoverSummary: string;
   incidentSummary: string;
-  noteType: "progress" | "incident" | "handover" | "risk" | "support_summary";
+  participantSummary: string;
+  noteType: "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly";
   riskFlagged: boolean;
   reviewReminder: string;
   fallbackUsed?: boolean;
@@ -354,6 +355,10 @@ ${args.input}`;
 
     return {
       ...result,
+      participantSummary: result.participantSummary?.trim()
+        || result.shortText?.trim()
+        || result.noteText?.trim()
+        || "",
       reviewReminder: result.reviewReminder || DRAFT_ONLY_REMINDER,
     };
   } catch (error) {

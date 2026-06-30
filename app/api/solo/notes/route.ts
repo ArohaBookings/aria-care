@@ -11,8 +11,9 @@ import {
 
 export const maxDuration = 60;
 
-const SOLO_NOTE_TYPES = new Set(["progress", "incident", "handover", "risk", "support_summary"]);
+const SOLO_NOTE_TYPES = new Set(["progress", "incident", "handover", "risk", "support_summary", "participant_friendly"]);
 const FREE_NOTE_TYPES = new Set(["progress"]);
+const SIGNOFF_STATUSES = new Set(["confirmed", "declined", "not_applicable", ""]);
 const PUBLIC_ERROR_PATTERNS = [
   /Unauthorized/i,
   /Solo mode is not enabled/i,
@@ -98,7 +99,7 @@ export async function GET() {
 
     const { data: notes, error } = await supabase
       .from("solo_notes")
-      .select("id, note_type, input_method, context, draft_text, short_text, handover_text, incident_text, detail_level, formatting_mode, status, copied_at, submitted_at, created_at")
+      .select("id, note_type, input_method, context, draft_text, short_text, handover_text, incident_text, participant_text, signoff, raw_input, detail_level, formatting_mode, status, copied_at, submitted_at, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(30);
@@ -155,7 +156,9 @@ export async function POST(request: NextRequest) {
     const detailLevel = typeof body.detailLevel === "string" ? body.detailLevel : "balanced";
     const inputMethod = body.inputMethod === "voice" ? "voice" : "text";
     const formattingMode = typeof body.formattingMode === "string" ? body.formattingMode : "structured";
-    const context = typeof body.context === "object" && body.context ? body.context : {};
+    const supportLog = body.supportLog === true;
+    const baseContext = typeof body.context === "object" && body.context ? body.context : {};
+    const context = supportLog ? { ...baseContext, supportLog: true } : baseContext;
 
     if (!SOLO_NOTE_TYPES.has(noteType)) {
       return NextResponse.json({ error: "Invalid note type" }, { status: 400 });
@@ -205,11 +208,13 @@ export async function POST(request: NextRequest) {
         short_text: result.shortText,
         handover_text: result.handoverSummary || null,
         incident_text: result.incidentSummary || null,
+        // Never surface a participant-facing version of an incident/risk note.
+        participant_text: (noteType === "incident" || noteType === "risk") ? null : (result.participantSummary || null),
         detail_level: detailLevel,
         formatting_mode: formattingMode,
         status: "draft",
       })
-      .select("id, note_type, input_method, context, draft_text, short_text, handover_text, incident_text, detail_level, formatting_mode, status, copied_at, submitted_at, created_at")
+      .select("id, note_type, input_method, context, draft_text, short_text, handover_text, incident_text, participant_text, signoff, raw_input, detail_level, formatting_mode, status, copied_at, submitted_at, created_at")
       .single();
 
     if (error) throw error;
@@ -286,13 +291,29 @@ export async function PATCH(request: NextRequest) {
       updates.status = "submitted";
     }
     if (typeof body.draftText === "string") updates.draft_text = body.draftText;
+    if (typeof body.participantText === "string") updates.participant_text = body.participantText.slice(0, 8000);
+
+    if (body.signoff && typeof body.signoff === "object" && !Array.isArray(body.signoff)) {
+      const raw = body.signoff as Record<string, unknown>;
+      const str = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+      const status = typeof raw.status === "string" && SIGNOFF_STATUSES.has(raw.status) ? raw.status : "";
+      updates.signoff = {
+        status,
+        participantComment: str(raw.participantComment, 4000),
+        participantName: str(raw.participantName, 200),
+        staffName: str(raw.staffName, 200),
+        confirmed: raw.confirmed === true,
+        signedAt: str(raw.signedAt, 40) || new Date().toISOString(),
+        savedAt: new Date().toISOString(),
+      };
+    }
 
     const { data, error } = await supabase
       .from("solo_notes")
       .update(updates)
       .eq("id", noteId)
       .eq("user_id", user.id)
-      .select("id, draft_text, status, copied_at, submitted_at")
+      .select("id, draft_text, participant_text, signoff, status, copied_at, submitted_at")
       .single();
 
     if (error) throw error;

@@ -9,13 +9,18 @@ import {
   Check,
   Copy,
   FileText,
+  Heart,
   Loader2,
   Mic,
+  PenLine,
   RotateCcw,
   Send,
   ShieldCheck,
   Sparkles,
   Square,
+  Users,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { detectCareSignals, scoreNoteQuality } from "@/lib/notes/quality";
@@ -30,10 +35,21 @@ import {
 import { buildAdaptiveDebriefQuestions } from "@/lib/notes/intelligence";
 
 type RecordingState = "idle" | "recording" | "processing" | "done" | "error";
-type NoteType = "progress" | "incident" | "handover" | "risk" | "support_summary";
+type NoteType = "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly";
 type DetailLevel = "concise" | "balanced" | "detailed";
 type InputMode = "voice" | "text" | "multi";
 type FormattingMode = "structured" | "short" | "detailed" | "handover_only" | "incident_summary" | "plain" | "paragraph" | "bullets";
+type SoloView = "worker" | "participant" | "handover" | "transcript";
+
+interface SignoffData {
+  status?: string;
+  participantComment?: string;
+  participantName?: string;
+  staffName?: string;
+  confirmed?: boolean;
+  signedAt?: string;
+  savedAt?: string;
+}
 
 interface SoloNote {
   id: string;
@@ -44,6 +60,9 @@ interface SoloNote {
   short_text: string | null;
   handover_text: string | null;
   incident_text: string | null;
+  participant_text: string | null;
+  raw_input: string | null;
+  signoff: SignoffData | null;
   detail_level: string;
   formatting_mode: string;
   status: string;
@@ -66,6 +85,7 @@ const NOTE_TYPES: Array<{ key: NoteType; label: string; free?: boolean }> = [
   { key: "handover", label: "Handover" },
   { key: "risk", label: "Risk concern" },
   { key: "support_summary", label: "Support summary" },
+  { key: "participant_friendly", label: "Participant-friendly" },
 ];
 
 const FORMAT_LABELS: Record<FormattingMode, string> = {
@@ -251,6 +271,53 @@ function QualityPanel({ text, noteType }: { text: string; noteType: string }) {
   );
 }
 
+const SIGNOFF_STATUS_OPTIONS: Array<{ key: string; label: string }> = [
+  { key: "confirmed", label: "Participant/carer confirmed the shift occurred" },
+  { key: "declined", label: "Participant/carer declined to comment" },
+  { key: "not_applicable", label: "Not applicable" },
+];
+
+function useReadAloud() {
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+  useEffect(() => () => {
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+  }, []);
+
+  const speak = (id: string, text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis || !text.trim()) return;
+    window.speechSynthesis.cancel();
+    if (speakingId === id) {
+      setSpeakingId(null);
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.lang = "en-AU";
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+    setSpeakingId(id);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  return { speakingId, speak };
+}
+
+function ReadAloudButton({ id, text, speakingId, onToggle }: { id: string; text: string; speakingId: string | null; onToggle: (id: string, text: string) => void }) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window) || !text?.trim()) return null;
+  const active = speakingId === id;
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(id, text)}
+      className="btn-secondary justify-center text-xs"
+      aria-label={active ? "Stop reading aloud" : "Read this summary aloud"}
+    >
+      {active ? <><VolumeX className="w-4 h-4" /> Stop reading</> : <><Volume2 className="w-4 h-4" /> Read aloud</>}
+    </button>
+  );
+}
+
 export default function SoloNotesExperience() {
   const searchParams = useSearchParams();
   const [soloState, setSoloState] = useState<SoloState | null>(null);
@@ -275,6 +342,13 @@ export default function SoloNotesExperience() {
   const [draftActionNotice, setDraftActionNotice] = useState("");
   const [debriefAnswers, setDebriefAnswers] = useState<Record<string, string>>({});
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [supportLog, setSupportLog] = useState(false);
+  const [activeView, setActiveView] = useState<SoloView>("worker");
+  const [participantDraft, setParticipantDraft] = useState("");
+  const [signoff, setSignoff] = useState<SignoffData>({});
+  const [signoffSaving, setSignoffSaving] = useState(false);
+  const [signoffSaved, setSignoffSaved] = useState(false);
+  const { speakingId, speak } = useReadAloud();
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
@@ -300,7 +374,9 @@ export default function SoloNotesExperience() {
           selectedPlatform?: string;
           context?: typeof DEFAULT_CONTEXT;
           debriefAnswers?: Record<string, string>;
+          supportLog?: boolean;
         };
+        if (typeof saved.supportLog === "boolean") setSupportLog(saved.supportLog);
         if (saved.textInput) setTextInput(saved.textInput);
         if (saved.inputMode && ["voice", "text", "multi"].includes(saved.inputMode)) setInputMode(saved.inputMode);
         if (saved.noteType && NOTE_TYPES.some((type) => type.key === saved.noteType)) setNoteType(saved.noteType);
@@ -352,11 +428,22 @@ export default function SoloNotesExperience() {
         selectedPlatform,
         context,
         debriefAnswers,
+        supportLog,
       }));
     } catch {
       // Local autosave is best-effort only.
     }
-  }, [context, debriefAnswers, detailLevel, formattingMode, inputMode, noteType, selectedPlatform, textInput]);
+  }, [context, debriefAnswers, detailLevel, formattingMode, inputMode, noteType, selectedPlatform, supportLog, textInput]);
+
+  // Hydrate participant-friendly draft + sign-off whenever a different note opens.
+  useEffect(() => {
+    if (!currentNote) return;
+    setParticipantDraft(currentNote.participant_text ?? "");
+    setSignoff(currentNote.signoff ?? {});
+    setActiveView("worker");
+    setSignoffSaved(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentNote?.id]);
 
   const atLimit = !!soloState && soloState.usage.remaining <= 0;
   const oneLeft = !!soloState && soloState.plan === "solo_free" && soloState.usage.remaining === 1;
@@ -370,6 +457,13 @@ export default function SoloNotesExperience() {
   );
   const currentNoteContext = currentNote?.context && typeof currentNote.context === "object" ? currentNote.context : {};
   const currentNoteGoals = typeof currentNoteContext.goals === "string" ? currentNoteContext.goals : context.goals;
+
+  const availableViews = ([
+    { key: "worker", label: "Worker note", show: true },
+    { key: "participant", label: "Participant-friendly", show: !!currentNote?.participant_text },
+    { key: "handover", label: "Handover summary", show: !!currentNote?.handover_text },
+    { key: "transcript", label: "Transcript", show: !!currentNote?.raw_input },
+  ] as Array<{ key: SoloView; label: string; show: boolean }>).filter((view) => view.show);
 
   const startRecording = async () => {
     try {
@@ -451,6 +545,7 @@ export default function SoloNotesExperience() {
           detailLevel,
           formattingMode,
           inputMethod: method,
+          supportLog,
           context: { ...context, debriefAnswers, platform: selectedPlatform || soloState?.platform || "" },
         }),
       });
@@ -626,6 +721,38 @@ export default function SoloNotesExperience() {
     await loadState();
   };
 
+  const saveSupportLog = async () => {
+    if (!currentNote) return;
+    setSignoffSaving(true);
+    setSignoffSaved(false);
+    try {
+      const res = await fetch("/api/solo/notes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          noteId: currentNote.id,
+          participantText: participantDraft,
+          signoff: { ...signoff, signedAt: signoff.signedAt || new Date().toISOString() },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not save the support log");
+      const savedSignoff: SignoffData = data.note?.signoff ?? signoff;
+      const updated = { ...currentNote, participant_text: participantDraft, signoff: savedSignoff };
+      setCurrentNote(updated);
+      setSignoff(savedSignoff);
+      setSoloState((current) => current ? {
+        ...current,
+        notes: current.notes.map((note) => note.id === updated.id ? updated : note),
+      } : current);
+      setSignoffSaved(true);
+    } catch (e) {
+      setError(friendlyError(e, "Could not save the support log. Please retry."));
+    } finally {
+      setSignoffSaving(false);
+    }
+  };
+
   const sendFeedback = async (rating: "yes" | "sort_of" | "no", noteId = currentNote?.id) => {
     if (!noteId) return;
     const res = await fetch("/api/solo/feedback", {
@@ -735,6 +862,25 @@ export default function SoloNotesExperience() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-aria-200 bg-aria-50/50 p-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={supportLog}
+                    onChange={(e) => setSupportLog(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-aria-600"
+                  />
+                  <span>
+                    <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                      <Users className="w-4 h-4 text-aria-600" /> Support log (involve participant/carer)
+                    </span>
+                    <span className="block text-[11px] text-slate-500 mt-0.5">
+                      Adds a plain-language summary to read with the participant, plus an optional participant/carer comment and sign-off. Support log confirmation only — not legal proof or a compliance guarantee.
+                    </span>
+                  </span>
+                </label>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -948,6 +1094,22 @@ export default function SoloNotesExperience() {
                 <span className="badge-teal text-[10px] capitalize">{currentNote.note_type.replace("_", " ")}</span>
               </div>
 
+              {availableViews.length > 1 && (
+                <div className="flex flex-wrap gap-1 bg-slate-100 rounded-xl p-1 mb-4">
+                  {availableViews.map((view) => (
+                    <button
+                      key={view.key}
+                      onClick={() => setActiveView(view.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeView === view.key ? "bg-white text-slate-900 shadow-card" : "text-slate-500 hover:text-slate-700"}`}
+                    >
+                      {view.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {activeView === "worker" && (
+              <div>
               {(currentNote.note_type === "incident" || currentNote.note_type === "risk") && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 mb-4 text-xs text-amber-900">
                   Follow your organisation&apos;s incident reporting and escalation process.
@@ -1023,6 +1185,111 @@ export default function SoloNotesExperience() {
               </div>
 
               <p className="mt-3 text-xs text-slate-500">Draft only — please review and edit before submitting to your workplace system.</p>
+              </div>
+              )}
+
+              {activeView === "participant" && (
+                <div>
+                  <div className="rounded-xl border border-aria-100 bg-aria-50/60 px-3 py-2 mb-3 text-xs text-aria-900 flex items-center gap-2">
+                    <Heart className="w-3.5 h-3.5 flex-shrink-0" /> Plain-language summary you can read with the participant or carer. Review it first — draft only.
+                  </div>
+                  <textarea
+                    value={participantDraft}
+                    onChange={(e) => setParticipantDraft(e.target.value)}
+                    rows={10}
+                    className="input resize-y text-sm leading-relaxed whitespace-pre-wrap"
+                    placeholder="A plain-language summary appears here when support log is on, or generate a Participant-friendly note."
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                    <ReadAloudButton id={`participant-${currentNote.id}`} text={participantDraft} speakingId={speakingId} onToggle={speak} />
+                    <button onClick={() => copyText("participant-friendly summary", participantDraft)} className="btn-secondary justify-center text-xs"><Copy className="w-4 h-4" /> Copy</button>
+                    <button onClick={saveSupportLog} disabled={signoffSaving || !participantDraft.trim()} className="btn-secondary justify-center text-xs disabled:opacity-50">
+                      {signoffSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[11px] text-slate-500">Check it is accurate and suitable to share before reading it with the participant.</p>
+                </div>
+              )}
+
+              {activeView === "handover" && (
+                <div>
+                  <textarea value={currentNote.handover_text ?? ""} readOnly rows={8} className="input resize-y text-sm leading-relaxed whitespace-pre-wrap bg-slate-50" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                    <ReadAloudButton id={`handover-${currentNote.id}`} text={currentNote.handover_text ?? ""} speakingId={speakingId} onToggle={speak} />
+                    <button onClick={() => copyText("handover summary", currentNote.handover_text)} className="btn-secondary justify-center text-xs"><Copy className="w-4 h-4" /> Copy handover</button>
+                  </div>
+                </div>
+              )}
+
+              {activeView === "transcript" && (
+                <div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 mb-3 text-[11px] text-slate-500">Direct record of what you entered for this shift, before Aria structured it.</div>
+                  <textarea value={currentNote.raw_input ?? ""} readOnly rows={8} className="input resize-y text-sm leading-relaxed whitespace-pre-wrap bg-slate-50" />
+                  <button onClick={() => copyText("transcript", currentNote.raw_input)} className="btn-secondary justify-center text-xs mt-3"><Copy className="w-4 h-4" /> Copy transcript</button>
+                </div>
+              )}
+
+              {/* Support log & participant/carer sign-off */}
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <PenLine className="w-4 h-4 text-aria-600" />
+                  <h4 className="font-display font-bold text-slate-900 text-sm">Support log &amp; participant sign-off</h4>
+                </div>
+                <p className="text-[11px] text-slate-500 mb-3">Optional. Support log confirmation only — this is not legal proof, a witnessed signature, or a compliance guarantee.</p>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="label">Participant/carer</label>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {SIGNOFF_STATUS_OPTIONS.map((opt) => (
+                        <label key={opt.key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="signoff-status"
+                            checked={signoff.status === opt.key}
+                            onChange={() => setSignoff((s) => ({ ...s, status: opt.key }))}
+                            className="h-3.5 w-3.5 accent-aria-600"
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="label">Participant/carer comments</label>
+                    <textarea
+                      value={signoff.participantComment ?? ""}
+                      onChange={(e) => setSignoff((s) => ({ ...s, participantComment: e.target.value }))}
+                      rows={2}
+                      className="input resize-y text-sm"
+                      placeholder="Optional: anything the participant or carer wanted noted, in their words."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input className="input" value={signoff.participantName ?? ""} onChange={(e) => setSignoff((s) => ({ ...s, participantName: e.target.value }))} placeholder="Participant/carer name" />
+                    <input className="input" value={signoff.staffName ?? ""} onChange={(e) => setSignoff((s) => ({ ...s, staffName: e.target.value }))} placeholder="Staff member name" />
+                  </div>
+
+                  <label className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={signoff.confirmed === true}
+                      onChange={(e) => setSignoff((s) => ({ ...s, confirmed: e.target.checked }))}
+                      className="mt-0.5 h-4 w-4 accent-aria-600"
+                    />
+                    I confirm this support log was reviewed with the participant/carer where appropriate.
+                  </label>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <button onClick={saveSupportLog} disabled={signoffSaving} className="btn-primary justify-center text-xs">
+                      {signoffSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : signoffSaved ? <><Check className="w-4 h-4" /> Saved</> : <><Check className="w-4 h-4" /> Save support log</>}
+                    </button>
+                    {signoff.savedAt && <span className="text-[11px] text-slate-400">Last saved {timeAgo(signoff.savedAt)}</span>}
+                  </div>
+                </div>
+              </div>
 
               <div className="mt-5 pt-4 border-t border-slate-100">
                 <p className="text-xs font-bold text-slate-600 mb-2">Was this note useful?</p>

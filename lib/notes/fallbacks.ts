@@ -108,14 +108,25 @@ ${buildAdaptiveDebriefQuestions(args.input, args.context, args.noteType).map((q)
 
 Draft only — please review and edit before submitting to your workplace system.`;
 
-  const guardian = buildDignityGuardianSuggestions(noteText);
+  const participantSummary = `Participant-friendly summary
+
+Here is a plain-language summary of today's support. Please review and edit it so it is accurate and suitable to read with you.
+
+What we did today: ${section.supportProvided || section.workerInput}${section.mood ? `\nHow things went: ${section.mood}` : ""}${section.followUp ? `\nWhat's next: ${section.followUp}` : ""}
+
+Draft only — review and edit before sharing.`;
+
+  const isParticipantFriendly = args.noteType === "participant_friendly";
+  const finalNoteText = isParticipantFriendly ? participantSummary : noteText;
+  const guardian = buildDignityGuardianSuggestions(finalNoteText);
 
   return {
-    noteText,
+    noteText: finalNoteText,
     shortText: `${noteTitle}: ${section.workerInput}`,
     handoverSummary: section.followUp || "",
     incidentSummary: section.risks || (hasNoIncidentStatement(args.input) ? "No incidents were reported in the worker input." : ""),
-    noteType: (args.noteType || "progress") as "progress" | "incident" | "handover" | "risk" | "support_summary",
+    participantSummary,
+    noteType: (args.noteType || "progress") as "progress" | "incident" | "handover" | "risk" | "support_summary" | "participant_friendly",
     riskFlagged: /incident|risk|injur|concern|unsafe|escalat/i.test(`${args.input} ${section.risks}`) && !hasNoIncidentStatement(args.input),
     reviewReminder: guardian.length
       ? "Fallback draft created. Please review the highlighted quality suggestions before submitting."
