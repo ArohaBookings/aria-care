@@ -1,16 +1,36 @@
 import { createAdminSupabase } from "@/lib/supabase/admin";
 
 const PLAN_PRICES: Record<string, number> = { starter: 149, growth: 349, business: 699, solo: 19, solo_pro: 29 };
+const PAID_TIERS = new Set(["starter", "growth", "business", "solo", "solo_pro"]);
+
+// A genuinely paying customer = a paid tier, an ACTIVE status, AND a real Stripe
+// subscription. This deliberately excludes super-admin/internal accounts and
+// every comped free-trial (admin_override, or active-without-Stripe), so only
+// real payers contribute to MRR/ARR.
+type RevenueOrg = { subscription_tier: string; subscription_status: string | null; stripe_subscription_id: string | null };
+function isPaying(o: RevenueOrg) {
+  return PAID_TIERS.has(o.subscription_tier)
+    && o.subscription_status === "active"
+    && !!o.stripe_subscription_id;
+}
 
 export default async function AdminRevenuePage() {
   const sb = createAdminSupabase();
 
-  const { data: orgs } = await sb.from("organisations").select("subscription_tier, subscription_status, created_at").neq("subscription_tier", "trial");
-  const { data: allOrgs } = await sb.from("organisations").select("subscription_tier, subscription_status, created_at, trial_ends_at");
+  const { data: allOrgs } = await sb.from("organisations").select("subscription_tier, subscription_status, stripe_subscription_id, created_at, trial_ends_at");
 
-  const active = orgs?.filter(o => o.subscription_status === "active") ?? [];
-  const mrr = active.reduce((s, o) => s + (PLAN_PRICES[o.subscription_tier] ?? 0), 0);
+  const paying = (allOrgs ?? []).filter(isPaying);
+  const mrr = paying.reduce((s, o) => s + (PLAN_PRICES[o.subscription_tier] ?? 0), 0);
   const arr = mrr * 12;
+
+  // Internal / comped accounts that are intentionally NOT counted in MRR/ARR
+  // (super-admin, admin plan overrides, and any comp that lacks a live Stripe sub).
+  const compedInternal = (allOrgs ?? []).filter(o =>
+    !isPaying(o) && (
+      o.subscription_status === "admin_override" ||
+      (PAID_TIERS.has(o.subscription_tier) && o.subscription_status === "active" && !o.stripe_subscription_id)
+    )
+  );
 
   const trialOrgs = allOrgs?.filter(o => o.subscription_tier === "trial") ?? [];
   const trialExpiringSoon = trialOrgs.filter(o => {
@@ -33,8 +53,8 @@ export default async function AdminRevenuePage() {
   });
 
   const planDist = ["solo", "solo_pro", "starter", "growth", "business"].map(p => ({
-    plan: p, count: active.filter(o => o.subscription_tier === p).length,
-    revenue: active.filter(o => o.subscription_tier === p).length * (PLAN_PRICES[p] ?? 0),
+    plan: p, count: paying.filter(o => o.subscription_tier === p).length,
+    revenue: paying.filter(o => o.subscription_tier === p).length * (PLAN_PRICES[p] ?? 0),
   }));
 
   const maxBar = Math.max(...Object.values(months), 1);
@@ -51,8 +71,8 @@ export default async function AdminRevenuePage() {
         {[
           { label: "MRR", value: `$${mrr.toLocaleString()}`, sub: "Monthly recurring", color: "text-emerald-400" },
           { label: "ARR", value: `$${arr.toLocaleString()}`, sub: "Annual run rate", color: "text-blue-400" },
-          { label: "Paying Customers", value: active.length, sub: "Active subscriptions", color: "text-teal-400" },
-          { label: "Trials Expiring", value: trialExpiringSoon.length, sub: "Next 7 days", color: trialExpiringSoon.length > 0 ? "text-amber-400" : "text-slate-400" },
+          { label: "Paying Customers", value: paying.length, sub: "Live Stripe subscriptions", color: "text-teal-400" },
+          { label: "Internal / Comped", value: compedInternal.length, sub: "Excluded from MRR/ARR", color: "text-slate-400" },
         ].map(({ label, value, sub, color }) => (
           <div key={label} className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
             <p className="text-xs text-slate-500 mb-2 uppercase tracking-wide font-semibold">{label}</p>

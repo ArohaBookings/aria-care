@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, FileText, Shield, DollarSign,
   Calendar, Settings, LogOut, Sparkles, ChevronRight,
-  Mic, Menu, X, LifeBuoy,
+  Mic, Menu, X, LifeBuoy, BarChart3, ClipboardList,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getInitials } from "@/lib/utils";
@@ -15,6 +15,8 @@ const NAV = [
   { href: "/notes", icon: Mic, label: "Voice Notes", highlight: true },
   { href: "/documents", icon: FileText, label: "Documents" },
   { href: "/participants", icon: Users, label: "Participants" },
+  { href: "/insights", icon: BarChart3, label: "Trends", roles: ["owner", "coordinator"] },
+  { href: "/coordinator", icon: ClipboardList, label: "Coordinator", roles: ["owner", "coordinator"] },
   { href: "/rostering", icon: Calendar, label: "Rostering" },
   { href: "/compliance", icon: Shield, label: "Compliance" },
   { href: "/billing", icon: DollarSign, label: "Billing" },
@@ -55,7 +57,10 @@ export default function Sidebar({ userEmail, userName, userRole, orgName, subscr
   const initials = getInitials(userName || userEmail);
   const isSolo = productMode === "solo" || subscriptionTier.startsWith("solo");
   const isPro = isSolo ? ["solo", "solo_pro"].includes(subscriptionTier) : ["growth", "business"].includes(subscriptionTier);
-  const navItems = isSolo ? SOLO_NAV : NAV;
+  const navItems = (isSolo ? SOLO_NAV : NAV).filter((item) => {
+    const roles = (item as { roles?: string[] }).roles;
+    return !roles || roles.includes(userRole);
+  });
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">

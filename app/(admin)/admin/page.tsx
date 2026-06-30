@@ -27,7 +27,7 @@ export default async function AdminOverviewPage() {
     adminSb.from("organisations").select("*", { count: "exact", head: true }).eq("subscription_tier", "trial"),
     adminSb.from("organisations").select("id, name, subscription_tier, subscription_status, created_at, contact_email").order("created_at", { ascending: false }).limit(8),
     adminSb.from("admin_audit_log").select("action, admin_email, target_type, created_at").order("created_at", { ascending: false }).limit(10),
-    adminSb.from("organisations").select("subscription_tier").neq("subscription_tier", "trial"),
+    adminSb.from("organisations").select("subscription_tier, subscription_status, stripe_subscription_id").neq("subscription_tier", "trial"),
     adminSb.from("solo_notes").select("user_id, note_type, copied_at, submitted_at, created_at").gte("created_at", monthStart).limit(5000),
     adminSb.from("users").select("id, account_type, solo_usage_reset_at, organisations(subscription_tier, product_mode, solo_note_limit_override)").limit(10000),
     adminSb.from("solo_notes").select("user_id, copied_at, submitted_at, created_at").limit(10000),
@@ -35,9 +35,29 @@ export default async function AdminOverviewPage() {
     adminSb.from("progress_notes").select("*", { count: "exact", head: true }).gte("created_at", monthStart),
   ]);
 
-  // MRR calculation
+  const [
+    { count: totalParticipants },
+    { count: participantFriendlyCount },
+    { count: incidentsThisMonth },
+  ] = await Promise.all([
+    adminSb.from("participants").select("*", { count: "exact", head: true }).eq("status", "active"),
+    adminSb.from("solo_notes").select("*", { count: "exact", head: true }).not("participant_text", "is", null),
+    adminSb.from("progress_notes").select("*", { count: "exact", head: true }).eq("incident_flagged", true).gte("created_at", monthStart),
+  ]);
+
+  // MRR/ARR: only genuine payers (paid tier + active status + a live Stripe
+  // subscription). Super-admin and comped/admin_override accounts are excluded.
   const PLAN_PRICES: Record<string, number> = { starter: 149, growth: 349, business: 699, solo: 19, solo_pro: 29 };
-  const mrr = (planCounts ?? []).reduce((sum, o) => sum + (PLAN_PRICES[o.subscription_tier] ?? 0), 0);
+  const PAID_TIERS = new Set(["starter", "growth", "business", "solo", "solo_pro"]);
+  const payingOrgs = (planCounts ?? []).filter((o) =>
+    PAID_TIERS.has(o.subscription_tier) && o.subscription_status === "active" && !!o.stripe_subscription_id
+  );
+  const mrr = payingOrgs.reduce((sum, o) => sum + (PLAN_PRICES[o.subscription_tier] ?? 0), 0);
+  const arr = mrr * 12;
+  const compedInternalCount = (planCounts ?? []).filter((o) =>
+    o.subscription_status === "admin_override" ||
+    (PAID_TIERS.has(o.subscription_tier) && o.subscription_status === "active" && !o.stripe_subscription_id)
+  ).length;
 
   const PLAN_BADGE: Record<string, string> = {
     trial: "bg-slate-700 text-slate-300",
@@ -146,10 +166,25 @@ export default async function AdminOverviewPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
+          { label: "ARR (run rate)", value: `$${arr.toLocaleString()}`, color: "text-emerald-400" },
+          { label: "Paying Customers", value: payingOrgs.length, color: "text-teal-400" },
+          { label: "Comped / Internal", value: compedInternalCount, color: "text-slate-300" },
+          { label: "Active Participants", value: totalParticipants ?? 0, color: "text-blue-400" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <p className={`font-display text-3xl font-bold ${color} mb-0.5`}>{typeof value === "number" ? value.toLocaleString() : value}</p>
+            <p className="text-xs text-slate-500">{label}</p>
+            {label === "Comped / Internal" && <p className="text-[10px] text-slate-600 mt-0.5">Excluded from MRR/ARR</p>}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
           { label: "Solo Users", value: soloMetrics.solo_users, color: "text-cyan-400" },
           { label: "Free Solo", value: soloMetrics.free_solo_users, color: "text-slate-300" },
           { label: "Paid Solo", value: soloMetrics.paid_solo_users, color: "text-emerald-400" },
-          { label: "Stories This Month", value: allStoriesMonth, color: "text-teal-400" },
+          { label: "Notes This Month", value: allStoriesMonth, color: "text-teal-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
             <p className={`font-display text-3xl font-bold ${color} mb-0.5`}>{Number(value ?? 0).toLocaleString()}</p>
@@ -164,7 +199,7 @@ export default async function AdminOverviewPage() {
           <div className="relative flex items-center justify-between mb-5">
             <div>
               <h3 className="font-semibold text-white text-sm flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-cyan-300" /> Story Mix This Month
+                <BarChart3 className="w-4 h-4 text-cyan-300" /> Note Mix This Month
               </h3>
               <p className="text-xs text-slate-500 mt-1">Solo note type usage without exposing private note content.</p>
             </div>
@@ -172,7 +207,7 @@ export default async function AdminOverviewPage() {
               {monthlySoloNotes.toLocaleString()} Solo
             </span>
           </div>
-          <BarList items={noteTypeEntries} emptyLabel="No Solo stories generated this month yet." />
+          <BarList items={noteTypeEntries} emptyLabel="No Solo notes generated this month yet." />
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -186,12 +221,20 @@ export default async function AdminOverviewPage() {
           </div>
           <div className="mt-5 space-y-2 text-xs">
             <div className="flex justify-between rounded-xl bg-slate-950/70 px-3 py-2">
-              <span className="text-slate-500">Total Solo stories</span>
+              <span className="text-slate-500">Total Solo notes</span>
               <span className="font-semibold text-slate-200">{(totalSoloNotes ?? 0).toLocaleString()}</span>
             </div>
             <div className="flex justify-between rounded-xl bg-slate-950/70 px-3 py-2">
               <span className="text-slate-500">Provider notes this month</span>
               <span className="font-semibold text-slate-200">{(providerNotesMonth ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between rounded-xl bg-slate-950/70 px-3 py-2">
+              <span className="text-slate-500">Participant-friendly summaries</span>
+              <span className="font-semibold text-slate-200">{(participantFriendlyCount ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between rounded-xl bg-slate-950/70 px-3 py-2">
+              <span className="text-slate-500">Incidents flagged (month)</span>
+              <span className="font-semibold text-slate-200">{(incidentsThisMonth ?? 0).toLocaleString()}</span>
             </div>
             <div className="flex justify-between rounded-xl bg-slate-950/70 px-3 py-2">
               <span className="text-slate-500">Feedback submitted</span>
@@ -296,7 +339,7 @@ export default async function AdminOverviewPage() {
             {[
               { label: "Free to paid", value: `${soloConversionRate}%`, icon: CheckCircle, hint: `${soloMetrics.paid_solo_users}/${Math.max(soloMetrics.solo_users, 1)} Solo users` },
               { label: "Copy adoption", value: `${copyRate}%`, icon: Copy, hint: `${copiedSoloMonth}/${Math.max(monthlySoloNotes, 1)} copied` },
-              { label: "Solo activity", value: monthlySoloNotes.toLocaleString(), icon: FileText, hint: "Solo stories this month" },
+              { label: "Solo activity", value: monthlySoloNotes.toLocaleString(), icon: FileText, hint: "Solo notes this month" },
               { label: "Provider activity", value: (providerNotesMonth ?? 0).toLocaleString(), icon: Building2, hint: "Team notes this month" },
             ].map(({ label, value, icon: Icon, hint }) => (
               <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">

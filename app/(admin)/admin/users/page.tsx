@@ -59,10 +59,10 @@ function formatLastLogin(value?: string | null) {
 }
 
 function formatLastNote(value?: string | null) {
-  if (!value) return "No stories yet";
+  if (!value) return "No notes yet";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Story time unknown";
-  return `Last story ${new Intl.DateTimeFormat("en-AU", { dateStyle: "medium" }).format(date)}`;
+  if (Number.isNaN(date.getTime())) return "Note time unknown";
+  return `Last note ${new Intl.DateTimeFormat("en-AU", { dateStyle: "medium" }).format(date)}`;
 }
 
 export default function AdminUsersPage() {
@@ -143,8 +143,8 @@ export default function AdminUsersPage() {
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { label: "Stories this month", value: totalStoriesMonth, icon: BarChart3, tone: "text-cyan-300 bg-cyan-400/10 border-cyan-400/20" },
-          { label: "Total stories", value: totalStories, icon: Gauge, tone: "text-teal-300 bg-teal-400/10 border-teal-400/20" },
+          { label: "Notes this month", value: totalStoriesMonth, icon: BarChart3, tone: "text-cyan-300 bg-cyan-400/10 border-cyan-400/20" },
+          { label: "Total notes", value: totalStories, icon: Gauge, tone: "text-teal-300 bg-teal-400/10 border-teal-400/20" },
           { label: "Paid Solo users", value: paidSoloUsers, icon: CreditCard, tone: "text-emerald-300 bg-emerald-400/10 border-emerald-400/20" },
           { label: "Never logged in", value: neverLoggedIn, icon: Clock, tone: "text-amber-300 bg-amber-400/10 border-amber-400/20" },
         ].map(({ label, value, icon: Icon, tone }) => (
@@ -253,7 +253,7 @@ export default function AdminUsersPage() {
                         <p className="text-[10px] text-slate-600">No Stripe record</p>
                       )}
                       <p className="text-[10px] text-cyan-300">
-                        Stories {user.usage?.solo_notes_month ?? 0}/mo · {user.usage?.total_solo_notes ?? 0} total
+                        Notes {user.usage?.solo_notes_month ?? 0}/mo · {user.usage?.total_solo_notes ?? 0} total
                       </p>
                       <p className="text-[10px] text-slate-600">{formatLastNote(user.usage?.last_note_at)}</p>
                     </div>
