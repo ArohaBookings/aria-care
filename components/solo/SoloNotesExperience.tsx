@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { detectCareSignals, scoreNoteQuality } from "@/lib/notes/quality";
+import { detectReportableSignals } from "@/lib/notes/reportable";
 import {
   AdaptiveDebriefPanel,
   DignityRiskGuardian,
@@ -502,6 +503,10 @@ export default function SoloNotesExperience() {
   );
   const currentNoteContext = currentNote?.context && typeof currentNote.context === "object" ? currentNote.context : {};
   const currentNoteGoals = typeof currentNoteContext.goals === "string" ? currentNoteContext.goals : context.goals;
+
+  const reportableSignals = currentNote
+    ? detectReportableSignals(`${editableDraft} ${currentNote.raw_input ?? ""}`)
+    : [];
 
   const availableViews = ([
     { key: "worker", label: "Worker note", show: true },
@@ -1236,6 +1241,18 @@ export default function SoloNotesExperience() {
               {(currentNote.note_type === "incident" || currentNote.note_type === "risk") && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 mb-4 text-xs text-amber-900">
                   Follow your organisation&apos;s incident reporting and escalation process.
+                </div>
+              )}
+
+              {reportableSignals.length > 0 && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 mb-4 text-xs text-red-900">
+                  <p className="font-bold flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 flex-shrink-0" /> This note may describe a reportable incident or restrictive practice</p>
+                  <ul className="mt-1.5 space-y-0.5">
+                    {reportableSignals.map((s) => <li key={s.category}>• {s.category}</li>)}
+                  </ul>
+                  <p className="mt-2">Aria can&apos;t decide this for you. Follow your organisation&apos;s incident reporting and the {" "}
+                    <a href="https://www.ndiscommission.gov.au/providers/incident-management-and-reportable-incidents" target="_blank" rel="noopener noreferrer" className="underline font-semibold">NDIS Commission reportable incident</a> process where it applies.
+                  </p>
                 </div>
               )}
 
