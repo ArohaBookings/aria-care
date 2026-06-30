@@ -164,7 +164,7 @@ export default async function AdminOverviewPage() {
   const freeLimitUsers = soloFunnelRecords.filter((row: any) => {
     const org = row.organisations as { subscription_tier?: string; solo_note_limit_override?: number | null } | null;
     if (org?.subscription_tier !== "solo_free") return false;
-    const limit = org?.solo_note_limit_override ?? 3;
+    const limit = org?.solo_note_limit_override ?? 10;
     return (monthlyNotesByUser[row.id] ?? 0) >= limit;
   }).length;
 

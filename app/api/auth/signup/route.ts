@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { productModeForPlan } from "@/lib/usage-limits";
-import { sendWelcomeEmail } from "@/lib/email/send";
+import { sendWelcomeEmail, sendSoloTrialWelcomeEmail } from "@/lib/email/send";
 
 export const runtime = "nodejs";
 
@@ -92,12 +92,22 @@ async function signupInstantly(args: {
     if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
     if (!organisationId) return NextResponse.json({ error: "Organisation could not be created" }, { status: 500 });
 
-    await sendWelcomeEmail({
-      to: args.email,
-      organisationId,
-      userId,
-      fullName: args.metadata.full_name,
-    });
+    if (isSoloIntent) {
+      await sendSoloTrialWelcomeEmail({
+        to: args.email,
+        organisationId,
+        userId,
+        fullName: args.metadata.full_name,
+        trialDays: 14,
+      });
+    } else {
+      await sendWelcomeEmail({
+        to: args.email,
+        organisationId,
+        userId,
+        fullName: args.metadata.full_name,
+      });
+    }
   }
 
   return NextResponse.json({ ok: true, delivery: "instant" });

@@ -62,9 +62,9 @@ const SOLO_PLANS = [
     key: "solo_free",
     name: "Free Solo",
     price: 0,
-    desc: "Try everything free for 14 days — no card. Then keep 3 free notes a month, forever.",
-    usage: "14 days unlimited, then 3/month",
-    features: ["14 days unlimited + every note type", "No card, no company setup", "Voice or bullet points", "Copy into ShiftCare or any platform", "Private saved history"],
+    desc: "Try everything free for 14 days — no card. Then keep 10 free notes a month, forever.",
+    usage: "14 days unlimited, then 10/month",
+    features: ["14 days unlimited + every note type", "Then 10 free notes every month", "No card, no company setup", "Voice or bullet points", "Copy into ShiftCare or any platform"],
     cta: "Start free — no card",
   },
   {

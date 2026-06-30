@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isAuthorizedCronRequest } from "@/lib/cron-auth";
-import { sendNoFirstNoteEmail, sendPaidInactiveCheckInEmail } from "@/lib/email/send";
+import { sendNoFirstNoteEmail, sendPaidInactiveCheckInEmail, sendSoloTrialEndingEmail } from "@/lib/email/send";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -136,6 +136,36 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+  }
+
+  // ── Free Solo trial ending (0–3 days left of the 14-day unlimited trial) ──
+  const trialWindowStart = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(); // created on/after 14d ago
+  const trialWindowEnd = new Date(now - 11 * 24 * 60 * 60 * 1000).toISOString();   // created on/before 11d ago
+  const { data: trialUsers } = await admin
+    .from("users")
+    .select("id, email, full_name, organisation_id, created_at, organisations(id, subscription_tier, product_mode, contact_email)")
+    .eq("account_type", "solo")
+    .gte("created_at", trialWindowStart)
+    .lte("created_at", trialWindowEnd)
+    .limit(200);
+
+  for (const user of (trialUsers ?? []) as unknown as LifecycleUser[]) {
+    const org = Array.isArray(user.organisations) ? user.organisations[0] : user.organisations;
+    const recipient = user.email || org?.contact_email;
+    if (!recipient || !user.organisation_id) continue;
+    if ((org?.subscription_tier ?? "solo_free") !== "solo_free") continue; // already upgraded — skip
+    const already = await wasSentRecently(admin, { userId: user.id, recipient, emailType: "solo_trial_ending", hours: 24 * 30 });
+    if (already) continue;
+    const ageDays = (now - new Date(user.created_at).getTime()) / (24 * 60 * 60 * 1000);
+    const daysLeft = Math.max(0, Math.ceil(14 - ageDays));
+    const result = await sendSoloTrialEndingEmail({
+      to: recipient,
+      organisationId: user.organisation_id,
+      fullName: user.full_name || "there",
+      userId: user.id,
+      daysLeft,
+    });
+    results.push({ user: user.id, emailType: "solo_trial_ending", sent: result.ok, reason: result.error });
   }
 
   return NextResponse.json({

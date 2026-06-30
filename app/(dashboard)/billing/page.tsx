@@ -121,7 +121,7 @@ function BillingPageInner() {
   const trialEndDate = org?.trial_ends_at ? new Date(org.trial_ends_at) : null;
   const usagePct = Math.round((participantCount / Math.max(currentPlan.participants, 1)) * 100);
   const nextUsagePlan = org?.subscription_tier === "growth" ? "business" : "growth";
-  const noteLimit = org?.solo_note_limit_override ?? currentPlan.notes ?? 3;
+  const noteLimit = org?.solo_note_limit_override ?? currentPlan.notes ?? 10;
   const soloUsagePct = Math.round((monthlyNoteCount / Math.max(noteLimit, 1)) * 100);
 
   if (isSoloBilling) {

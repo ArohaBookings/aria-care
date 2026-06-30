@@ -63,7 +63,7 @@ function OnboardingContent() {
     ? ["About you", "Solo setup", "Choose plan"]
     : ["About you", "Organisation", "First Participant", "Invite Team", "Start Trial"];
   const planOptions = [
-    { key: "solo_free" as const, group: "Solo", name: "Free Solo", price: "$0", note: "3 progress notes/month · no card · upgrade later" },
+    { key: "solo_free" as const, group: "Solo", name: "Free Solo", price: "$0", note: "14 days unlimited, then 10 notes/month · no card" },
     { key: "solo" as const, group: "Solo", name: "Aria Care Solo", price: soloCountry === "New Zealand" ? "NZ$21" : "AU$19", note: "125 notes/month · all Solo note types · 14-day card trial" },
     { key: "solo_pro" as const, group: "Solo", name: "Aria Care Solo Pro", price: soloCountry === "New Zealand" ? "NZ$32" : "AU$29", note: "400 notes/month · advanced templates · 14-day card trial" },
     { key: "starter" as const, group: "Provider", name: "Starter", price: "$149", note: "Provider workspace · up to 10 participants · 14-day card trial" },

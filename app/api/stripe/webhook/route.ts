@@ -1,8 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { sendPurchaseThankYouEmail } from "@/lib/email/send";
 
 export const runtime = "nodejs";
+
+const PLAN_LABEL: Record<string, string> = {
+  starter: "Provider Starter", growth: "Provider Growth", business: "Provider Business", solo: "Solo", solo_pro: "Solo Pro",
+};
+const NEXT_PLAN: Record<string, { name: string; benefit: string }> = {
+  solo: { name: "Solo Pro", benefit: "400 notes a month and advanced templates" },
+  starter: { name: "Growth", benefit: "the billing assistant, rostering and the participant portal" },
+  growth: { name: "Business", benefit: "the AI coordinator agent and audit-pack generator" },
+};
+
+// Best-effort post-purchase thank-you. Never throws into the webhook.
+async function sendPurchaseThankYou(orgId: string, plan: string, sessionEmail?: string | null) {
+  try {
+    const { data: org } = await admin.from("organisations").select("contact_email").eq("id", orgId).single();
+    const { data: owner } = await admin.from("users").select("email, full_name").eq("organisation_id", orgId).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    const to = sessionEmail || (owner as { email?: string } | null)?.email || (org as { contact_email?: string } | null)?.contact_email;
+    if (!to) return;
+    await sendPurchaseThankYouEmail({
+      to,
+      organisationId: orgId,
+      fullName: (owner as { full_name?: string } | null)?.full_name || "there",
+      planName: PLAN_LABEL[plan] ?? plan,
+      nextPlan: NEXT_PLAN[plan] ?? null,
+    });
+  } catch (err) {
+    console.error("[webhook] thank-you email failed (non-fatal):", err);
+  }
+}
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
 
@@ -101,6 +130,7 @@ export async function POST(request: NextRequest) {
           ...(trialEndsAt ? { trial_ends_at: trialEndsAt } : {}),
         });
         console.log(`✓ Checkout complete: org=${orgId} plan=${plan} status=${status}`);
+        await sendPurchaseThankYou(orgId, plan, session.customer_details?.email);
         break;
       }
 

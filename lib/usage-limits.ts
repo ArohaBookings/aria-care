@@ -22,7 +22,7 @@ export const NOTE_GENERATION_LIMITS: Record<ProviderPlanKey, number> = {
 };
 
 export const SOLO_MONTHLY_NOTE_LIMITS: Record<SoloPlanKey, number> = {
-  solo_free: 3,
+  solo_free: 10,
   solo: 125,
   solo_pro: 400,
 };

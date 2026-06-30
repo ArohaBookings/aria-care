@@ -38,6 +38,11 @@ type EmailType =
   | "free_usage_nearing_limit"
   | "free_limit_reached"
   | "paid_inactive_48h"
+  | "solo_trial_welcome"
+  | "solo_trial_ending"
+  | "purchase_thank_you"
+  | "renewal_reminder"
+  | "product_tips"
   | "generic";
 
 type SendArgs = {
@@ -119,33 +124,80 @@ export async function sendEmail(args: SendArgs): Promise<{ ok: boolean; id?: str
 }
 
 // ------------------------------------------------------------
-// Shared HTML shell — keeps every email visually consistent
-// without pulling in a template engine.
+// Shared HTML shell — Aria-branded, works in light AND dark email
+// clients (prefers-color-scheme), no template engine needed.
+// Signature kept positional so existing templates upgrade for free.
 // ------------------------------------------------------------
-function shell(heading: string, bodyHtml: string, ctaLabel?: string, ctaUrl?: string) {
+const BRAND = "linear-gradient(135deg,#0d9488 0%,#0891b2 55%,#06b6d4 100%)";
+
+function shell(heading: string, bodyHtml: string, ctaLabel?: string, ctaUrl?: string, preheader?: string) {
   const cta = ctaLabel && ctaUrl
-    ? `<p style="margin:32px 0 0"><a href="${ctaUrl}" style="background:#0f172a;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">${ctaLabel}</a></p>`
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 4px"><tr><td style="border-radius:12px;background:${BRAND};background-color:#0d9488">
+         <a href="${ctaUrl}" style="display:inline-block;padding:14px 28px;font-weight:700;font-size:15px;color:#ffffff;text-decoration:none;border-radius:12px">${ctaLabel}</a>
+       </td></tr></table>`
+    : "";
+  const pre = preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;height:0;width:0">${preheader}</div>`
     : "";
   return `<!doctype html>
-<html>
-  <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0f172a;line-height:1.6">
-    <div style="max-width:560px;margin:0 auto;padding:40px 24px">
-      <div style="background:#fff;border-radius:16px;padding:40px;border:1px solid #e2e8f0">
-        <div style="font-size:24px;font-weight:700;color:#0f172a;margin-bottom:8px">Aria Care</div>
-        <div style="height:1px;background:#e2e8f0;margin:20px 0"></div>
-        <h1 style="font-size:22px;font-weight:700;margin:0 0 16px">${heading}</h1>
-        ${bodyHtml}
-        ${cta}
-      </div>
-      <div style="text-align:center;padding:24px;font-size:12px;color:#64748b">
-        Aria Care — structured support note drafts for Australia & NZ. <br/>
-        Reply to this email for help. <br/>
-        <a href="${APP_URL}" style="color:#64748b">${APP_URL.replace(/^https?:\/\//, "")}</a>
-      </div>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  @media (prefers-color-scheme: dark) {
+    .bg-outer { background:#0b1220 !important; }
+    .card { background:#111827 !important; border-color:#1f2937 !important; }
+    .txt { color:#e5e7eb !important; }
+    .txt h1 { color:#f8fafc !important; }
+    .txt strong { color:#f8fafc !important; }
+    .muted { color:#94a3b8 !important; }
+    .panel { background:#0f172a !important; border-color:#1f2937 !important; color:#cbd5e1 !important; }
+    .chip { background:#0f3b38 !important; color:#5eead4 !important; }
+  }
+  a { color:#0d9488; }
+</style>
+</head>
+<body class="bg-outer" style="margin:0;padding:0;background:#eef2f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6">
+  ${pre}
+  <div style="max-width:560px;margin:0 auto;padding:28px 14px">
+    <div style="background:${BRAND};background-color:#0d9488;border-radius:18px 18px 0 0;padding:22px 30px">
+      <span style="color:#ffffff;font-size:19px;font-weight:800;letter-spacing:-0.2px">✦ Aria Care</span>
+      <span style="color:#cffafe;font-size:12px;font-weight:600;float:right;padding-top:5px">Support documentation, done in seconds</span>
     </div>
-  </body>
+    <div class="card" style="background:#ffffff;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 18px 18px;padding:34px 30px">
+      <h1 class="txt" style="font-size:21px;font-weight:800;margin:0 0 14px;color:#0f172a;line-height:1.3">${heading}</h1>
+      <div class="txt" style="color:#334155;font-size:15px">${bodyHtml}</div>
+      ${cta}
+    </div>
+    <div class="muted" style="text-align:center;padding:20px 10px;font-size:12px;color:#64748b">
+      Aria Care — clearer support notes, handovers and summaries for Australia &amp; New Zealand.<br/>
+      Just reply to this email if you need a hand.<br/>
+      <a href="${APP_URL}" style="color:#0d9488;text-decoration:none">${APP_URL.replace(/^https?:\/\//, "")}</a>
+    </div>
+  </div>
+</body>
 </html>`;
 }
+
+// Reusable styled bits for richer templates (inherit dark-mode via classes above).
+function promoBox(code: string, detail: string) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;width:100%"><tr>
+    <td class="panel" style="background:#f0fdfa;border:1px dashed #5eead4;border-radius:12px;padding:16px;text-align:center">
+      <div class="muted" style="font-size:12px;color:#0f766e;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Your code</div>
+      <div class="txt" style="font-size:24px;font-weight:800;letter-spacing:1px;color:#0f766e;margin:4px 0">${code}</div>
+      <div class="muted" style="font-size:13px;color:#64748b">${detail}</div>
+    </td></tr></table>`;
+}
+function tipsList(tips: string[]) {
+  return `<ul style="padding-left:18px;margin:14px 0">${tips.map((t) => `<li style="margin:7px 0">${t}</li>`).join("")}</ul>`;
+}
+
+// 10% off first month — create a matching promotion code in Stripe (default "ARIA10").
+const WELCOME_PROMO_CODE = process.env.ARIA_WELCOME_PROMO_CODE || "ARIA10";
 
 // ------------------------------------------------------------
 // Templates
@@ -413,6 +465,169 @@ export async function sendPaidInactiveCheckInEmail(args: {
        <p>If something feels clunky, reply to this email and tell me where it got in your way.</p>`,
       "Open Aria Care",
       `${APP_URL}/notes`
+    ),
+  });
+}
+
+const first = (name: string) => (name?.trim()?.split(" ")[0] || "there");
+
+// 1) New Free Solo user — 14-day unlimited trial begins.
+export async function sendSoloTrialWelcomeEmail(args: {
+  to: string;
+  organisationId: string;
+  fullName: string;
+  userId?: string | null;
+  trialDays?: number;
+}) {
+  const days = args.trialDays ?? 14;
+  return sendEmail({
+    to: args.to,
+    type: "solo_trial_welcome",
+    organisationId: args.organisationId,
+    userId: args.userId,
+    subject: `Welcome to Aria Care — your ${days} days of unlimited notes start now`,
+    html: shell(
+      `You're in, ${first(args.fullName)} — ${days} days, unlimited notes`,
+      `<p>Welcome to Aria Care. For the next <strong>${days} days you have unlimited notes and every note type unlocked</strong> — no card needed.</p>
+       <p>The fastest way to feel the difference: at the end of your next shift, speak or type a few rough bullet points and let Aria turn them into a clean, review-ready draft.</p>
+       ${tipsList([
+         "Try a <strong>voice note</strong> in the car after a shift — Aria writes the structured note.",
+         "Switch the output to a <strong>participant-friendly summary</strong> you can read with the person you support.",
+         "Use <strong>SOAP</strong> or dot-point format depending on what your workplace wants.",
+         "Copy straight into ShiftCare, Lumary, Brevity or any system.",
+       ])}
+       <p class="muted" style="color:#64748b;font-size:13px">After your trial, Free Solo keeps 10 notes a month — or upgrade any time.</p>`,
+      "Create your first note",
+      `${APP_URL}/notes`,
+      `${days} days of unlimited notes, no card. Here's how to get the most out of it.`
+    ),
+  });
+}
+
+// 2) Trial ending soon — gentle nudge + 10% off first month.
+export async function sendSoloTrialEndingEmail(args: {
+  to: string;
+  organisationId: string;
+  fullName: string;
+  userId: string;
+  daysLeft: number;
+}) {
+  const d = Math.max(0, args.daysLeft);
+  return sendEmail({
+    to: args.to,
+    type: "solo_trial_ending",
+    organisationId: args.organisationId,
+    userId: args.userId,
+    subject: d <= 0 ? "Your Aria Care trial has ended — 10% off if it helped" : `Your Aria Care trial ends in ${d} day${d === 1 ? "" : "s"} — here's 10% off`,
+    html: shell(
+      d <= 0 ? "Your free trial has ended" : `${d} day${d === 1 ? "" : "s"} left of unlimited notes`,
+      `<p>Hi ${first(args.fullName)},</p>
+       <p>${d <= 0 ? "Your 14-day unlimited trial has finished. Free Solo keeps 10 notes a month — and if Aria saved you time after shifts, a Solo plan keeps the unlimited feeling going." : "Your unlimited trial is wrapping up. If Aria has been saving you time on after-shift notes, here's a thank-you for trying it:"}</p>
+       ${promoBox(WELCOME_PROMO_CODE, "10% off your first month of any Solo plan")}
+       <p class="muted" style="color:#64748b;font-size:13px">Solo is $19/mo (NZ$21) for 125 notes; Solo Pro is $29/mo (NZ$32) for 400. Cancel anytime. Only upgrade if it's worth it for you.</p>`,
+      "Upgrade & apply my code",
+      `${APP_URL}/billing?reason=solo-trial&promo=${encodeURIComponent(WELCOME_PROMO_CODE)}`,
+      d <= 0 ? "10% off your first month if Aria helped." : `Only ${d} day${d === 1 ? "" : "s"} left — plus 10% off your first month.`
+    ),
+  });
+}
+
+// 3) Successful purchase — thank you, getting-started tips, tasteful upgrade nudge.
+export async function sendPurchaseThankYouEmail(args: {
+  to: string;
+  organisationId: string;
+  fullName: string;
+  userId?: string | null;
+  planName: string;
+  nextPlan?: { name: string; benefit: string } | null;
+}) {
+  const upsell = args.nextPlan
+    ? `<p class="muted" style="color:#64748b;font-size:13px">When you outgrow it, <strong>${args.nextPlan.name}</strong> adds ${args.nextPlan.benefit} — it's one tap in Billing whenever you're ready. No rush.</p>`
+    : "";
+  return sendEmail({
+    to: args.to,
+    type: "purchase_thank_you",
+    organisationId: args.organisationId,
+    userId: args.userId,
+    subject: `Thank you — your Aria Care ${args.planName} is active`,
+    html: shell(
+      `Thank you, ${first(args.fullName)} — you're on ${args.planName}`,
+      `<p>Thank you for backing Aria Care. Your <strong>${args.planName}</strong> plan is active and ready.</p>
+       <p>Three quick ways to get the most out of it from day one:</p>
+       ${tipsList([
+         "Capture by <strong>voice</strong> right after a shift — fastest path from memory to note.",
+         "Use the <strong>participant-friendly summary</strong> and read-aloud to involve the person you support.",
+         "Generate an <strong>audit-ready report</strong> before plan reviews — clean PDF in a click.",
+       ])}
+       ${upsell}
+       <p>Questions or a feature you'd love? Just reply — real human, fast answer.</p>`,
+      "Open Aria Care",
+      `${APP_URL}/notes`,
+      `You're on ${args.planName}. Here's how to get the most out of it.`
+    ),
+  });
+}
+
+// 4) Subscription renewing soon — value-reinforcing heads-up (reduce churn).
+export async function sendRenewalReminderEmail(args: {
+  to: string;
+  organisationId: string;
+  fullName: string;
+  userId?: string | null;
+  planName: string;
+  renewalDate: string;
+  amount: string;
+  notesThisPeriod?: number;
+}) {
+  const value = typeof args.notesThisPeriod === "number" && args.notesThisPeriod > 0
+    ? `<p>This period you turned <strong>${args.notesThisPeriod} note${args.notesThisPeriod === 1 ? "" : "s"}</strong> into review-ready drafts with Aria — that's real time back after shifts.</p>`
+    : "";
+  return sendEmail({
+    to: args.to,
+    type: "renewal_reminder",
+    organisationId: args.organisationId,
+    userId: args.userId,
+    subject: `Your Aria Care ${args.planName} renews on ${args.renewalDate}`,
+    html: shell(
+      `Your ${args.planName} renews ${args.renewalDate}`,
+      `<p>Hi ${first(args.fullName)},</p>
+       <p>Just a heads-up that your Aria Care <strong>${args.planName}</strong> renews on <strong>${args.renewalDate}</strong> for <strong>${args.amount}</strong>.</p>
+       ${value}
+       <p>Nothing to do if you're happy — it renews automatically. You can update your plan or payment details any time in Billing.</p>`,
+      "Manage billing",
+      `${APP_URL}/billing`,
+      `Renews ${args.renewalDate} for ${args.amount}.`
+    ),
+  });
+}
+
+// 5) Periodic product tips — feature education, kept genuinely useful.
+export async function sendProductTipsEmail(args: {
+  to: string;
+  organisationId: string;
+  fullName: string;
+  userId?: string | null;
+  tips?: string[];
+}) {
+  const tips = args.tips ?? [
+    "<strong>Multi-client day</strong>: paste a whole day's rough dump and Aria splits it into separate notes.",
+    "<strong>Support log + sign-off</strong>: capture a participant/carer comment and confirmation on the note.",
+    "<strong>Coordinator overview</strong> (teams): see concerns, follow-ups and trends per participant at a glance.",
+  ];
+  return sendEmail({
+    to: args.to,
+    type: "product_tips",
+    organisationId: args.organisationId,
+    userId: args.userId,
+    subject: "3 ways to get more out of Aria Care",
+    html: shell(
+      "Get more from Aria Care this month",
+      `<p>Hi ${first(args.fullName)}, a few features people tell us they wish they'd found sooner:</p>
+       ${tipsList(tips)}
+       <p>Anything you'd like Aria to do that it doesn't yet? Reply and tell us — feedback genuinely shapes what we build next.</p>`,
+      "Try them now",
+      `${APP_URL}/notes`,
+      "Three features worth a 30-second look."
     ),
   });
 }
