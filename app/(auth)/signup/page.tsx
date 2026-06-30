@@ -6,7 +6,7 @@ import { Sparkles, ArrowLeft, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const PLAN_LABELS: Record<string, string> = {
-  solo_free: "Free Solo — 3 notes/month (no card)",
+  solo_free: "Free Solo — 14 days unlimited, then 10 notes/month (no card ever)",
   solo: "Aria Care Solo — AU$19/mo or NZ$21/mo (14 days free)",
   solo_pro: "Aria Care Solo Pro — AU$29/mo or NZ$32/mo (14 days free)",
   starter: "Starter — $149/mo (14 days free)",

@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/utils";
 import { MiniBars } from "@/components/insights/Charts";
 import ExportButtons from "@/components/insights/ExportButtons";
 import { NoteRow, participantSnapshot } from "@/lib/insights/aggregate";
+import ReviewInbox from "@/components/review/ReviewInbox";
 
 export const metadata = { title: "Coordinator overview | Aria" };
 
@@ -36,6 +37,19 @@ export default async function CoordinatorPage() {
 
   const notes = (rawNotes ?? []) as NoteRow[];
   const participants = participantRows ?? [];
+  const participantName = new Map(participants.map((p) => [p.id, p.full_name]));
+  const pendingItems = notes
+    .filter((n) => n.status === "pending")
+    .slice(0, 50)
+    .map((n) => ({
+      id: n.id,
+      participantId: n.participant_id,
+      participant: (n.participant_id && participantName.get(n.participant_id)) || "Unknown participant",
+      date: formatDate(n.shift_date ?? n.created_at),
+      author: n.author_name ?? "",
+      snippet: (n.note_text ?? "").slice(0, 160),
+      incident: !!n.incident_flagged,
+    }));
 
   const snapshots = participants
     .map((p) => ({ participant: p, snap: participantSnapshot(p.id, notes) }))
@@ -81,6 +95,8 @@ export default async function CoordinatorPage() {
       <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-500 print:hidden">
         These snapshots summarise what was recorded in progress notes. Review the underlying notes before acting — they do not diagnose or measure outcomes.
       </div>
+
+      <ReviewInbox items={pendingItems} />
 
       {snapshots.length === 0 ? (
         <div className="card p-12 text-center border-dashed">

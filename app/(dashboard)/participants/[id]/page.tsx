@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, Mic, Clock, Edit, AlertCircle } from "lucide-react";
+import { ArrowLeft, FileText, Mic, Clock, Edit, AlertCircle, Target } from "lucide-react";
 import { formatDate, daysUntil } from "@/lib/utils";
+import { MiniBars } from "@/components/insights/Charts";
+import { NoteRow, goalProgress } from "@/lib/insights/aggregate";
 
 export default async function ParticipantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,6 +25,26 @@ export default async function ParticipantPage({ params }: { params: Promise<{ id
     .eq("participant_id", id)
     .order("created_at", { ascending: false })
     .limit(5);
+
+  const { data: goalNotes } = await supabase
+    .from("progress_notes")
+    .select("id, participant_id, author_id, author_name, created_at, shift_date, note_text, mood, support_type, support_level, incident_flagged, suggested_review, suggested_review_reason, status, goals_referenced")
+    .eq("participant_id", id)
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  const { data: structuredGoals } = await supabase
+    .from("participant_goals")
+    .select("goal_text")
+    .eq("participant_id", id);
+
+  const goalList = Array.from(new Set(
+    [
+      ...(structuredGoals ?? []).map((g) => g.goal_text),
+      ...(((participant.goals as string[] | null) ?? [])),
+    ].map((g) => (g ?? "").trim()).filter(Boolean)
+  ));
+  const goals = goalProgress((goalNotes ?? []) as NoteRow[], goalList, 6);
 
   const planDays = participant.plan_end_date ? daysUntil(participant.plan_end_date) : null;
 
@@ -124,6 +146,27 @@ export default async function ParticipantPage({ params }: { params: Promise<{ id
           </div>
         </div>
       </div>
+
+      {goals.length > 0 && (
+        <div className="card overflow-hidden mb-6">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 flex-wrap">
+            <Target className="w-4 h-4 text-aria-600" />
+            <h3 className="font-semibold text-slate-900 text-sm">Goal progress over time</h3>
+            <span className="text-[11px] text-slate-400">from goals referenced in notes — an aid to review, not an outcome measure</span>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {goals.map((g) => (
+              <div key={g.goal} className="px-5 py-3.5 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate" title={g.goal}>{g.goal}</p>
+                  <p className="text-xs text-slate-400">{g.total} note{g.total === 1 ? "" : "s"}{g.lastDate ? ` · last ${formatDate(g.lastDate)}` : " · not referenced in notes yet"}</p>
+                </div>
+                <div className="w-28 flex-shrink-0" title="Mentions per month (last 6 months)"><MiniBars series={g.monthly.map((m) => m.value)} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">

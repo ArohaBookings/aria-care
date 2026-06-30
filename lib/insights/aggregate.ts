@@ -111,6 +111,42 @@ export interface ParticipantSnapshot {
   weeklyTrend: number[];
 }
 
+// Goal-progress timeline: for each participant goal, how often notes referenced
+// it over recent months. Goals are matched leniently by shared significant words
+// (goals_referenced is free text, so exact matching would miss most links).
+function goalTokens(s: string): Set<string> {
+  return new Set((s.toLowerCase().match(/[a-z]{4,}/g) ?? []));
+}
+
+export interface GoalProgress {
+  goal: string;
+  total: number;
+  monthly: SeriesPoint[];
+  lastDate: string | null;
+}
+
+export function goalProgress(notes: NoteRow[], goals: string[], months = 6): GoalProgress[] {
+  return goals
+    .map((g) => (g ?? "").trim())
+    .filter(Boolean)
+    .map((goal) => {
+      const gt = goalTokens(goal);
+      const matched = notes.filter((n) =>
+        (n.goals_referenced ?? []).some((ref) => {
+          for (const t of goalTokens(ref)) if (gt.has(t)) return true;
+          return false;
+        })
+      );
+      const dates = matched.map((n) => n.shift_date ?? n.created_at).sort();
+      return {
+        goal,
+        total: matched.length,
+        monthly: monthlyCounts(matched, () => true, months),
+        lastDate: dates.length ? dates[dates.length - 1] : null,
+      };
+    });
+}
+
 export function participantSnapshot(participantId: string, notes: NoteRow[]): ParticipantSnapshot {
   const mine = notes
     .filter((n) => n.participant_id === participantId)

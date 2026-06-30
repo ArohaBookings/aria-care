@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Users, Plus, ArrowRight, AlertCircle } from "lucide-react";
 import { formatDate, daysUntil } from "@/lib/utils";
 import { SearchInput } from "@/components/dashboard/SearchInput";
+import ImportParticipants from "@/components/participants/ImportParticipants";
 
 export const metadata = { title: "Participants | Aria" };
 
@@ -39,6 +40,10 @@ export default async function ParticipantsPage({ searchParams }: { searchParams:
         <Link href="/participants/new" className="btn-primary">
           <Plus className="w-4 h-4" /> Add participant
         </Link>
+      </div>
+
+      <div className="mb-6">
+        <ImportParticipants />
       </div>
 
       {/* Search bar */}
