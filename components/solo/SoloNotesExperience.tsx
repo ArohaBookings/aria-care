@@ -47,8 +47,15 @@ interface SignoffData {
   participantName?: string;
   staffName?: string;
   confirmed?: boolean;
+  linkedRoles?: string[];
   signedAt?: string;
   savedAt?: string;
+}
+
+interface MonthlySummary {
+  summaryText: string;
+  noteCount: number;
+  reviewReminder: string;
 }
 
 interface SoloNote {
@@ -280,6 +287,15 @@ const SIGNOFF_STATUS_OPTIONS: Array<{ key: string; label: string }> = [
   { key: "not_applicable", label: "Not applicable" },
 ];
 
+const LINK_ROLE_OPTIONS: Array<{ key: string; label: string }> = [
+  { key: "support_coordinator", label: "Support coordinator" },
+  { key: "team_leader", label: "Team leader" },
+  { key: "provider_admin", label: "Provider / admin" },
+  { key: "next_worker", label: "Next support worker" },
+  { key: "behaviour_practitioner", label: "Behaviour practitioner" },
+  { key: "family_carer", label: "Family / carer" },
+];
+
 function useReadAloud() {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
 
@@ -351,6 +367,10 @@ export default function SoloNotesExperience() {
   const [signoff, setSignoff] = useState<SignoffData>({});
   const [signoffSaving, setSignoffSaving] = useState(false);
   const [signoffSaved, setSignoffSaved] = useState(false);
+  const [monthlySummary, setMonthlySummary] = useState<MonthlySummary | null>(null);
+  const [monthlyMonth, setMonthlyMonth] = useState("");
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [monthlyError, setMonthlyError] = useState("");
   const { speakingId, speak } = useReadAloud();
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
@@ -722,6 +742,35 @@ export default function SoloNotesExperience() {
       body: JSON.stringify({ noteId: currentNote.id, action: "submitted" }),
     });
     await loadState();
+  };
+
+  const toggleLinkedRole = (role: string) => {
+    setSignoff((s) => {
+      const current = Array.isArray(s.linkedRoles) ? s.linkedRoles : [];
+      const next = current.includes(role) ? current.filter((r) => r !== role) : [...current, role];
+      return { ...s, linkedRoles: next };
+    });
+    setSignoffSaved(false);
+  };
+
+  const generateMonthlySummary = async () => {
+    setMonthlyLoading(true);
+    setMonthlyError("");
+    try {
+      const res = await fetch("/api/solo/monthly-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monthOffset: 0 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not generate the monthly summary");
+      setMonthlySummary(data.summary);
+      setMonthlyMonth(data.month ?? "");
+    } catch (e) {
+      setMonthlyError(friendlyError(e, "Could not generate the monthly summary. Please retry."));
+    } finally {
+      setMonthlyLoading(false);
+    }
   };
 
   const saveSupportLog = async () => {
@@ -1285,6 +1334,22 @@ export default function SoloNotesExperience() {
                     I confirm this support log was reviewed with the participant/carer where appropriate.
                   </label>
 
+                  <div className="pt-1 border-t border-slate-100">
+                    <label className="label flex items-center gap-1.5 mt-3"><Users className="w-3.5 h-3.5 text-aria-600" /> Who should be linked in?</label>
+                    <p className="text-[11px] text-slate-500 mb-2">Flag who should see this note. A visible note for your team — not a messaging system.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {LINK_ROLE_OPTIONS.map((role) => {
+                        const checked = (signoff.linkedRoles ?? []).includes(role.key);
+                        return (
+                          <label key={role.key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                            <input type="checkbox" checked={checked} onChange={() => toggleLinkedRole(role.key)} className="h-3.5 w-3.5 accent-aria-600" />
+                            {role.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                     <button onClick={saveSupportLog} disabled={signoffSaving} className="btn-primary justify-center text-xs">
                       {signoffSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : signoffSaved ? <><Check className="w-4 h-4" /> Saved</> : <><Check className="w-4 h-4" /> Save support log</>}
@@ -1346,6 +1411,27 @@ export default function SoloNotesExperience() {
                     </div>
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Monthly support summary */}
+          <div className="card p-5">
+            <h3 className="font-display font-bold text-slate-900 flex items-center gap-1.5"><FileText className="w-4 h-4 text-aria-600" /> Monthly support summary</h3>
+            <p className="text-xs text-slate-500 mb-3">Pulls this month&apos;s notes into one end-of-month summary you can review and share.</p>
+            <button onClick={generateMonthlySummary} disabled={monthlyLoading} className="btn-secondary w-full justify-center text-xs">
+              {monthlyLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Summarising your month...</> : <><Sparkles className="w-4 h-4" /> Generate this month&apos;s summary</>}
+            </button>
+            {monthlyError && <p className="mt-2 text-xs text-red-600">{monthlyError}</p>}
+            {monthlySummary && (
+              <div className="mt-3">
+                <p className="text-[11px] font-bold text-slate-500 uppercase mb-1">{monthlyMonth} · {monthlySummary.noteCount} note{monthlySummary.noteCount === 1 ? "" : "s"}</p>
+                <textarea readOnly value={monthlySummary.summaryText} rows={10} className="input resize-y text-sm leading-relaxed whitespace-pre-wrap bg-slate-50" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                  <ReadAloudButton id="monthly-summary" text={monthlySummary.summaryText} speakingId={speakingId} onToggle={speak} />
+                  <button onClick={() => copyText("monthly summary", monthlySummary.summaryText)} className="btn-secondary justify-center text-xs"><Copy className="w-4 h-4" /> Copy summary</button>
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500">{monthlySummary.reviewReminder}</p>
               </div>
             )}
           </div>

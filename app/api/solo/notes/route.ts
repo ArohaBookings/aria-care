@@ -14,6 +14,9 @@ export const maxDuration = 60;
 const SOLO_NOTE_TYPES = new Set(["progress", "incident", "handover", "risk", "support_summary", "participant_friendly", "dot_point", "coordinator_summary", "daily_snapshot"]);
 const FREE_NOTE_TYPES = new Set(["progress"]);
 const SIGNOFF_STATUSES = new Set(["confirmed", "declined", "not_applicable", ""]);
+const LINK_ROLES = new Set([
+  "support_coordinator", "team_leader", "provider_admin", "next_worker", "behaviour_practitioner", "family_carer",
+]);
 const PUBLIC_ERROR_PATTERNS = [
   /Unauthorized/i,
   /Solo mode is not enabled/i,
@@ -297,12 +300,16 @@ export async function PATCH(request: NextRequest) {
       const raw = body.signoff as Record<string, unknown>;
       const str = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
       const status = typeof raw.status === "string" && SIGNOFF_STATUSES.has(raw.status) ? raw.status : "";
+      const linkedRoles = Array.isArray(raw.linkedRoles)
+        ? Array.from(new Set(raw.linkedRoles.filter((role): role is string => typeof role === "string" && LINK_ROLES.has(role)))).slice(0, 10)
+        : [];
       updates.signoff = {
         status,
         participantComment: str(raw.participantComment, 4000),
         participantName: str(raw.participantName, 200),
         staffName: str(raw.staffName, 200),
         confirmed: raw.confirmed === true,
+        linkedRoles,
         signedAt: str(raw.signedAt, 40) || new Date().toISOString(),
         savedAt: new Date().toISOString(),
       };

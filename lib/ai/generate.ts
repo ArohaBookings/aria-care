@@ -7,6 +7,7 @@ import {
   EMAIL_DRAFT_PROMPT,
   HANDOVER_NOTE_PROMPT,
   SOLO_NOTE_PROMPT,
+  MONTHLY_SUMMARY_PROMPT,
 } from "./prompts";
 import { buildFallbackProgressNote, buildFallbackSoloNote } from "@/lib/notes/fallbacks";
 
@@ -404,5 +405,51 @@ ${args.input}`;
       formattingMode: args.formattingMode,
       context: args.context,
     });
+  }
+}
+
+// ============================================================
+// MONTHLY SUPPORT SUMMARY — aggregates a month of solo notes
+// ============================================================
+export interface MonthlySummaryResult {
+  summaryText: string;
+  noteCount: number;
+  reviewReminder: string;
+}
+
+export async function generateMonthlySummary(args: {
+  month: string;
+  notes: Array<{ noteType: string; text: string; date: string }>;
+}): Promise<MonthlySummaryResult> {
+  const body = args.notes
+    .map((note, index) => `Note ${index + 1} (${note.date}, ${note.noteType}):\n${note.text}`)
+    .join("\n\n---\n\n");
+  const userContent = `MONTH: ${args.month}
+NUMBER OF NOTES: ${args.notes.length}
+
+SHIFT NOTES THIS MONTH:
+${body}`;
+
+  try {
+    const raw = await callAI(MONTHLY_SUMMARY_PROMPT, userContent);
+    const parsed = parseJSON<MonthlySummaryResult>(raw);
+    return {
+      summaryText: parsed.summaryText || "Monthly support summary could not be generated. Please review the individual notes.",
+      noteCount: args.notes.length,
+      reviewReminder: parsed.reviewReminder || DRAFT_ONLY_REMINDER,
+    };
+  } catch (error) {
+    console.error("[ai] Monthly summary fallback:", error);
+    return {
+      summaryText: `Monthly support summary
+
+Overview:
+${args.notes.length} note${args.notes.length === 1 ? "" : "s"} were recorded this month. An AI summary was unavailable, so please review the individual notes for ${args.month}.
+
+Follow-up / recommendations for next month:
+Review the month's notes manually before sharing.`,
+      noteCount: args.notes.length,
+      reviewReminder: DRAFT_ONLY_REMINDER,
+    };
   }
 }
